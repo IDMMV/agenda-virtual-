@@ -476,6 +476,31 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.error));
 }
 
+// V5.10.2: controles superiores con eventos delegados para evitar que un render dinámico los desconecte.
+document.addEventListener('click', event => {
+  const target = event.target.closest('#menuBtn,#manageFamilyBtn,#profilePhotoBtn,#topLogoutBtn,#globalLogoutBtn,#globalAdminBtn');
+  if (!target) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (target.id === 'menuBtn') {
+    setSidebar(!$('#sidebar').classList.contains('open'));
+  } else if (target.id === 'manageFamilyBtn') {
+    openFamilyManager();
+  } else if (target.id === 'profilePhotoBtn') {
+    openProfileEditor();
+  } else if (target.id === 'topLogoutBtn' || target.id === 'globalLogoutBtn') {
+    logout();
+  } else if (target.id === 'globalAdminBtn') {
+    loadGlobalRole().then(() => {
+      if (isSuperAdmin()) navigateTo('superadmin', true);
+      else toast('Tu cuenta no tiene rol super_admin');
+    });
+  }
+});
+document.addEventListener('change', event => {
+  if (event.target?.id === 'currentFamily') switchFamily(event.target.value);
+});
+
 // V5.9.7: cierre delegado para modales agregados después del script principal.
 document.addEventListener('click', event => {
   const closeBtn = event.target.closest('[data-close]');
