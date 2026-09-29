@@ -1,0 +1,14 @@
+MI HOGAR AL DÍA PWA V5.9.4
+
+MI HOGAR AL DÍA PWA V5.9.0 — PANEL DE SUPERADMINISTRADOR
+
+Ejecuta primero el SQL de superadministrador general. Sube todos los archivos, cierra sesión y vuelve a ingresar. En el menú lateral aparecerá Administración general.
+
+
+V5.9.1: el Dashboard abre directamente la Administración general cuando la cuenta tiene rol super_admin.
+
+
+IMPORTANTE: sube también el archivo .nojekyll a la raíz del repositorio.
+
+
+V5.9.4: foto de perfil y nombre visible editables.
