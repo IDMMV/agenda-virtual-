@@ -352,6 +352,26 @@ $('#resetForm').onsubmit=async e=>{e.preventDefault();const email=$('#resetEmail
 $('#newPasswordForm').onsubmit=async e=>{e.preventDefault();const p1=$('#newPassword').value,p2=$('#newPassword2').value;if(p1!==p2){toast('Las contraseñas no coinciden');return}const btn=e.submitter;btn.disabled=true;btn.textContent='Guardando…';const {error}=await supabaseClient.auth.updateUser({password:p1});btn.disabled=false;btn.textContent='Guardar nueva contraseña';if(error){toast(friendlyAuthError(error));return}authState.recovery=false;await supabaseClient.auth.signOut();history.replaceState({},'',location.pathname);showAuth('login');toast('Contraseña actualizada. Inicia sesión con tu nueva contraseña')};
 const resend=$('#resendConfirmBtn');if(resend)resend.onclick=async()=>{const email=$('#verifyEmail').value.trim();if(!email){toast('Escribe tu correo en Crear cuenta');return}const {error}=await supabaseClient.auth.resend({type:'signup',email,options:{emailRedirectTo:APP_URL}});toast(error?friendlyAuthError(error):'Correo de confirmación reenviado')};
 const sideLogout=$('#logoutBtn');if(sideLogout)sideLogout.onclick=logout;const topLogout=$('#topLogoutBtn');if(topLogout)topLogout.onclick=logout;const globalLogout=$('#globalLogoutBtn');if(globalLogout)globalLogout.onclick=logout;const globalAdmin=$('#globalAdminBtn');if(globalAdmin)globalAdmin.onclick=async()=>{await loadGlobalRole();if(isSuperAdmin())navigateTo('superadmin',true);else toast('Tu cuenta no tiene rol super_admin')};
+document.addEventListener('click',async e=>{
+  const target=e.target.closest('#topLogoutBtn,#profilePhotoBtn,#manageFamilyBtn,#globalLogoutBtn,#globalAdminBtn,#superAdminTopBtn,#superAdminQuickBtn');
+  if(!target)return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(target.id==='topLogoutBtn'||target.id==='globalLogoutBtn'){await logout();return}
+  if(target.id==='profilePhotoBtn'){openProfileEditor();return}
+  if(target.id==='manageFamilyBtn'){openFamilyManager();return}
+  if(['globalAdminBtn','superAdminTopBtn','superAdminQuickBtn'].includes(target.id)||target.matches('[data-view="superadmin"]')){
+    await loadGlobalRole();
+    if(!isSuperAdmin()){toast('Tu cuenta aún no fue reconocida como superadministrador');return}
+    navigateTo('superadmin',true);
+  }
+},true);
+document.addEventListener('change',e=>{
+  const target=e.target.closest('#currentFamily');
+  if(!target)return;
+  e.stopPropagation();
+  switchFamily(target.value);
+},true);
 document.addEventListener('click',async e=>{const logoutTarget=e.target.closest('#logoutBtn,#topLogoutBtn,#globalLogoutBtn,[data-action="logout"]');if(logoutTarget){e.preventDefault();e.stopPropagation();await logout();return}const adminTarget=e.target.closest('#globalAdminBtn,#superAdminTopBtn,#superAdminQuickBtn,[data-view="superadmin"]');if(adminTarget){e.preventDefault();e.stopPropagation();await loadGlobalRole();if(!isSuperAdmin()){toast('Tu cuenta aún no fue reconocida como superadministrador');return}navigateTo('superadmin',true);return}});
 supabaseClient.auth.onAuthStateChange(async(event,session)=>{if(event==='PASSWORD_RECOVERY'){authState.recovery=true;showAuth('login');$('#loginForm').classList.add('hidden');$('#newPasswordForm').classList.remove('hidden');return}if(event==='SIGNED_OUT'){authState.session=null;showAuth('login');return}if(session&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){try{await ensureSupabaseWorkspace(session)}catch(err){console.error(err);toast('Sesión iniciada, pero no se pudo preparar el espacio: '+friendlyAuthError(err))}}});
 (async()=>{const {data,error}=await supabaseClient.auth.getSession();if(error){console.error(error);showAuth('login');return}if(data.session){try{await ensureSupabaseWorkspace(data.session)}catch(err){console.error(err);showAuth('login');toast('No se pudo cargar tu espacio en Supabase')}}else showAuth('login')})();
