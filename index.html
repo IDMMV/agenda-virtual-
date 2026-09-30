@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-<!-- BUILD: Mi Hogar al Día PWA V5.11.2 - Agenda tabla - 2026-09-29 -->
+<!-- BUILD: Mi Hogar al Día PWA V5.11.3 - Agenda unificada - 2026-09-29 -->
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes,viewport-fit=cover">
@@ -787,12 +787,10 @@ body.auth-open .app,body.auth-open .bottom-nav,body.auth-open .fab{visibility:hi
   <div class="mobile-profile-card"><span class="avatar" id="sideAvatar"></span><div><b id="sideUserName">Mamá</b><small id="sideUserRole">Administradora</small><small id="sideFamilyName">Familia Hugo</small></div></div>
   <span class="mobile-admin-title">Administración</span><button id="superAdminQuickBtn" class="btn primary hidden" data-view="superadmin" data-super-admin-only style="margin:8px 0 10px;width:100%">🛡️ Administración general</button>
   <nav class="nav" id="nav">
-    <button data-view="inicio" class="active">🏡 <span>Inicio</span></button>
     <button data-view="pendientes">📒 <span>Mi Agenda</span><b id="pendingCountNav">0</b></button>
-    <button data-view="pendientes" data-new-note>📝 <span>Nueva nota</span></button>
+    <button data-new-note>📝 <span>Nueva nota</span></button>
     <button data-view="calendario">📅 <span>Calendario</span></button>
     <button data-view="gastos">💰 <span>Gastos del hogar</span></button>
-    <button data-view="realizadas">✅ <span>Realizadas</span></button>
     <button data-view="dashboard" data-admin-only>📊 <span>Dashboard</span></button>
     <button data-view="familia" data-admin-only>👨‍👩‍👧‍👦 <span>Mi familia</span></button>
     
@@ -807,7 +805,7 @@ body.auth-open .app,body.auth-open .bottom-nav,body.auth-open .fab{visibility:hi
 <main class="main">
 <header class="topbar">
   <button class="icon-btn" id="menuBtn" type="button" aria-label="Abrir menú">☰</button>
-  <div class="top-title"><h1 id="pageTitle">Tablero</h1><p id="pageSubtitle">Organiza tu hogar de forma simple</p></div><button id="superAdminTopBtn" class="btn primary hidden" data-view="superadmin" data-super-admin-only>🛡️ Administración general</button>
+  <div class="top-title"><h1 id="pageTitle">Mi Agenda</h1><p id="pageSubtitle">Cuaderno digital del hogar</p></div><button id="superAdminTopBtn" class="btn primary hidden" data-view="superadmin" data-super-admin-only>🛡️ Administración general</button>
   <div class="top-profile"><div class="family-switch"><select id="currentFamily" aria-label="Familia"></select><button class="family-manage" id="manageFamilyBtn" title="Administrar familias">⚙️</button></div><div class="user-box"><button type="button" id="profilePhotoBtn" class="profile-photo-btn" title="Editar perfil"><span class="avatar" id="currentAvatar"></span><span class="profile-camera">📷</span></button><div class="profile-summary"><b id="currentUserName">Usuario</b><small class="account-badge" id="accountEmail"></small><small class="supabase-live">● Supabase</small></div><button type="button" id="topLogoutBtn" class="top-logout-btn" title="Cerrar sesión" aria-label="Cerrar sesión">🚪 <span>Cerrar sesión</span></button></div></div>
 </header>
 <section id="content"></section>
