@@ -500,30 +500,44 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.error));
 }
 
-// V5.10.2: controles superiores con eventos delegados para evitar que un render dinámico los desconecte.
+// V5.11.5: controlador único de controles superiores.
+// Se ejecuta en fase capture para interceptar los botones antes de listeners dinámicos.
 document.addEventListener('click', event => {
-  const target = event.target.closest('#menuBtn,#manageFamilyBtn,#profilePhotoBtn,#topLogoutBtn,#globalLogoutBtn,#globalAdminBtn');
+  const target = event.target.closest('#menuBtn,#manageFamilyBtn,#profilePhotoBtn,#topLogoutBtn,#globalLogoutBtn,#globalAdminBtn,#superAdminTopBtn,#superAdminQuickBtn');
   if (!target) return;
   event.preventDefault();
-  event.stopPropagation();
+  event.stopImmediatePropagation();
+
   if (target.id === 'menuBtn') {
     setSidebar(!$('#sidebar').classList.contains('open'));
-  } else if (target.id === 'manageFamilyBtn') {
+    return;
+  }
+  if (target.id === 'manageFamilyBtn') {
     openFamilyManager();
-  } else if (target.id === 'profilePhotoBtn') {
+    return;
+  }
+  if (target.id === 'profilePhotoBtn') {
     openProfileEditor();
-  } else if (target.id === 'topLogoutBtn' || target.id === 'globalLogoutBtn') {
+    return;
+  }
+  if (target.id === 'topLogoutBtn' || target.id === 'globalLogoutBtn') {
     logout();
-  } else if (target.id === 'globalAdminBtn') {
+    return;
+  }
+  if (['globalAdminBtn','superAdminTopBtn','superAdminQuickBtn'].includes(target.id)) {
     loadGlobalRole().then(() => {
       if (isSuperAdmin()) navigateTo('superadmin', true);
       else toast('Tu cuenta no tiene rol super_admin');
     });
   }
-});
+}, true);
+
 document.addEventListener('change', event => {
-  if (event.target?.id === 'currentFamily') switchFamily(event.target.value);
-});
+  const target = event.target.closest('#currentFamily');
+  if (!target) return;
+  event.stopImmediatePropagation();
+  switchFamily(target.value);
+}, true);
 
 // V5.9.7: cierre delegado para modales agregados después del script principal.
 document.addEventListener('click', event => {
