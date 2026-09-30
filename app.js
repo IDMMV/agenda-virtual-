@@ -500,7 +500,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.error));
 }
 
-// V5.12.1: controlador único de controles superiores.
+// V5.12.2: controlador único de controles superiores.
 // Se ejecuta en fase capture para interceptar los botones antes de listeners dinámicos.
 document.addEventListener('click', event => {
   const target = event.target.closest('#menuBtn,#manageFamilyBtn,#profilePhotoBtn,#topLogoutBtn,#globalLogoutBtn,#globalAdminBtn,#superAdminTopBtn,#superAdminQuickBtn');
