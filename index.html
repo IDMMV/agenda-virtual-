@@ -788,7 +788,16 @@ body.auth-open .app,body.auth-open .bottom-nav,body.auth-open .fab{visibility:hi
 <section id="content"></section>
 </main>
 </div>
-<button class="fab" id="fab">＋</button>
+<div id="legacyCompat" class="hidden" aria-hidden="true">
+<select id="currentFamily"><option value=""></option></select><select id="currentUser"><option value=""></option></select>
+<button id="manageFamilyBtn" type="button"></button><span id="sideFamilyName"></span>
+<button id="showCreateFamily" type="button"></button><form id="createFamilyForm"><input id="newFamilyName"></form>
+<button id="showJoinFamily" type="button"></button><form id="joinFamilyForm"><input id="joinFamilyCode"></form>
+<button id="cancelFamilyForm" type="button"></button><button id="cancelJoinForm" type="button"></button>
+<div id="familyModal"></div><div id="familyGroupList"></div>
+<form id="chatForm"><textarea id="chatText"></textarea><select id="chatType"><option value="note">note</option></select></form><div id="chatMessages"></div><div id="familyGroupList"></div>
+<input id="enableNotifications" type="checkbox"><input id="familyNameField"><input id="registerFamilyName">
+</div><button class="fab" id="fab">＋</button>
 <div id="globalActionBar" class="global-action-bar hidden"><button type="button" id="globalAdminBtn" class="btn primary hidden">🛡️ Administración general</button><button type="button" id="globalLogoutBtn" class="btn danger">🚪 Cerrar sesión</button></div>
 
 <button class="pwa-install" id="pwaInstallBtn" type="button">📲 <span>Instalar aplicación</span></button>
