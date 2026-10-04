@@ -859,7 +859,7 @@ const state={users:JSON.parse(localStorage.getItem('mh_users')||'null')||seedUse
 
 const SUPABASE_URL='https://zvxpwspzpmfizagoybhy.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_CPxi7plhmZ-Vqlz7QYf1eA_wQRpvUxn';
-const APP_URL='https://idmmv.github.io/Gestion-Del-Hogar/';
+const APP_URL='https://agenda-virtual-lilac.vercel.app/';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 let globalRole='user';let superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],tab:'resumen'};
 const authState={accounts:[],session:null,recovery:false};
