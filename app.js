@@ -65,18 +65,30 @@ let globalRole='user';
 let superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],audit:[],tab:'resumen'};
 const authState={accounts:[],session:null,recovery:false,pendingChallengeId:'',pendingEmail:''};
 
-async function googleApi(action,payload={}) {
+async function googleApi(action,payload={}){
   const body={action,payload:{...payload}};
-  if(authState.session?.token) body.payload.sessionToken=authState.session.token;
-  const response=await fetch(GOOGLE_BACKEND_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)
-  });
-  let data;
-  try{data=await response.json()}catch(_){throw new Error('El backend de Google no devolvió una respuesta válida')}
-  if(!response.ok||data.ok===false)throw new Error(data.error||'No se pudo completar la operación');
+  if(authState.session?.token)body.payload.sessionToken=authState.session.token;
+  let response;
+  try{
+    response=await fetch(GOOGLE_BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+  }catch(err){throw new Error('No se pudo conectar con Mi Control. Verifica tu conexión a Internet.')}
+  let data=null;
+  try{data=await response.json()}catch(_){throw new Error('El servidor no devolvió una respuesta válida.')}
+  if(!response.ok||data.ok===false)throw new Error(data.error||('Error del servidor ('+response.status+')'));
   return data;
+}
+async function checkGoogleBackend(){
+  try{
+    const r=await fetch(GOOGLE_BACKEND_URL,{method:'GET',cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||d.ok===false)throw new Error(d.error||'Backend no disponible');
+    return d;
+  }catch(err){throw new Error(err?.message||'Backend Google no disponible')}
+}
+function authStatus(message,type='error'){
+  ['#loginAuthStatus','#registerAuthStatus','#verifyAuthStatus','#resetAuthStatus'].forEach(sel=>{
+    const el=$(sel);if(el){el.textContent=message;el.className='auth-status '+type;el.classList.remove('hidden')}
+  });
 }
 
 function showAuth(panel='login'){
@@ -528,23 +540,28 @@ $('#loginForm').onsubmit=async e=>{
   const email=$('#loginEmail').value.trim().toLowerCase(),password=$('#loginPassword').value;
   const btn=e.submitter;btn.disabled=true;btn.textContent='Verificando…';
   try{
+    authStatus('Conectando con Google…','info');
     const result=await googleApi('login',{email,password});
     show2FA(email,result.challengeId,'Enviamos un código de acceso a tu correo.');
+    authStatus('Código enviado. Revisa tu correo.','success');
     toast('Revisa tu correo para continuar');
-  }catch(err){toast(friendlyAuthError(err))}
+  }catch(err){authStatus(friendlyAuthError(err));toast(friendlyAuthError(err))}
   finally{btn.disabled=false;btn.textContent='Iniciar sesión'}
 };
 $('#registerForm').onsubmit=async e=>{
   e.preventDefault();
   const name=$('#registerName').value.trim(),email=$('#registerEmail').value.trim().toLowerCase(),email2=$('#registerEmail2').value.trim().toLowerCase(),p1=$('#registerPassword').value,p2=$('#registerPassword2').value;
-  if(email!==email2){toast('Los correos electrónicos no coinciden');return}
-  if(p1!==p2){toast('Las contraseñas no coinciden');return}
+  if(email!==email2){authStatus('Los correos electrónicos no coinciden');toast('Los correos electrónicos no coinciden');return}
+  if(p1!==p2){authStatus('Las contraseñas no coinciden');toast('Las contraseñas no coinciden');return}
+  if(p1.length<8){authStatus('La contraseña debe tener al menos 8 caracteres.');toast('La contraseña debe tener al menos 8 caracteres');return}
   const btn=e.submitter;btn.disabled=true;btn.textContent='Creando cuenta…';
   try{
+    authStatus('Conectando con Google y creando tu cuenta…','info');
     const result=await googleApi('register',{name,email,password:p1});
     show2FA(email,result.challengeId,'Tu cuenta fue creada. Enviamos el código de seguridad.');
+    authStatus('Cuenta creada. Revisa tu correo para confirmar el acceso.','success');
     toast('Cuenta creada correctamente');
-  }catch(err){toast(friendlyAuthError(err))}
+  }catch(err){authStatus(friendlyAuthError(err));toast(friendlyAuthError(err))}
   finally{btn.disabled=false;btn.textContent='Crear mi cuenta'}
 };
 $('#verifyForm').onsubmit=async e=>{
