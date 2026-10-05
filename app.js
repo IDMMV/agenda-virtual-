@@ -79,6 +79,7 @@ async function googleApi(action,payload={}) {
 }
 
 function showAuth(panel='login'){
+  document.body.classList.add('auth-open');
   const screen=$('#authScreen');screen.classList.remove('hidden');
   $$('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b.dataset.authTab===panel));
   $('#loginForm').classList.toggle('hidden',panel!=='login');
@@ -88,7 +89,7 @@ function showAuth(panel='login'){
   $('#resetSentForm').classList.add('hidden');
   $('#newPasswordForm').classList.add('hidden');
 }
-function hideAuth(){const screen=$('#authScreen');screen.classList.add('hidden')}
+function hideAuth(){document.body.classList.remove('auth-open');const screen=$('#authScreen');screen.classList.add('hidden')}
 function show2FA(email,challengeId,message='Enviamos un código de seguridad a tu correo.'){
   authState.pendingEmail=email;authState.pendingChallengeId=challengeId;
   localStorage.setItem('mh_pending_2fa',JSON.stringify({email,challengeId}));
@@ -512,6 +513,12 @@ $$('[data-eye]').forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.eye);i.type=i
 $('#showReset').onclick=()=>{$('#loginForm').classList.add('hidden');$('#registerForm').classList.add('hidden');$('#resetForm').classList.remove('hidden');$$('[data-auth-tab]').forEach(b=>b.classList.remove('active'))};
 $('#backLogin').onclick=()=>showAuth('login');
 $('#backLoginFromSent').onclick=()=>showAuth('login');
+const continueReset=$('#continueResetBtn');
+if(continueReset)continueReset.onclick=()=>{
+  $('#resetSentForm').classList.add('hidden');
+  $('#newPasswordForm').classList.remove('hidden');
+  $('#resetCode')?.focus();
+};
 $('#backLoginFromVerify').onclick=()=>showAuth('login');
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();
