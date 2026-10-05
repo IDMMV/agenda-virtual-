@@ -1,6 +1,9 @@
 /** MI CONTROL — Google Apps Script backend V5.14 */
 const APP_NAME='Mi Control';
-const VERSION='5.14.0';
+const VERSION='5.16.0';
+// Base de datos principal de Mi Control (Google Sheets).
+// Se puede sobrescribir con la propiedad de script SPREADSHEET_ID.
+const DEFAULT_SPREADSHEET_ID='1jhKi8XygsPYbmh1kknII79QKwcKqzTlSa_ATOFVy-QA';
 const SESSION_DAYS=7;
 const CODE_MINUTES=10;
 const PASSWORD_ROUNDS=12000;
@@ -155,7 +158,7 @@ function audit_(userId,action,detail){append_(sheet_('AUDITORIA'),{id:Utilities.
 function hash_(v,s){var b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(s)+'|'+String(v),Utilities.Charset.UTF_8);return b.map(function(x){return (x<0?x+256:x).toString(16).padStart(2,'0')).join('')}
 function normEmail_(e){return String(e||'').trim().toLowerCase()}
 function iso_(){return new Date().toISOString()}
-function getDb_(){var ss=SpreadsheetApp.getActiveSpreadsheet();if(ss)return ss;var id=PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');if(!id)throw new Error('Falta configurar SPREADSHEET_ID en las propiedades del proyecto de Apps Script');return SpreadsheetApp.openById(id)}
+function getDb_(){var ss=SpreadsheetApp.getActiveSpreadsheet();if(ss)return ss;var id=PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')||DEFAULT_SPREADSHEET_ID;return SpreadsheetApp.openById(id)}
 function sheet_(n){return getDb_().getSheetByName(n)}
 function findRow_(sh,key,value){if(!sh||sh.getLastRow()<2)return null;var h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0],idx=h.indexOf(key);if(idx<0)return null;var v=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();for(var i=0;i<v.length;i++)if(String(v[i][idx])===String(value))return {row:i+2,obj:objectFrom_(h,v[i])};return null}
 function sheetObjects_(n){return sheetObjectsWithRows_(n).map(function(x){return x.obj})}
