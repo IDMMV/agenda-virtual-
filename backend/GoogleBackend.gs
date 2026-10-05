@@ -3,6 +3,8 @@ const APP_NAME='Mi Control';
 const VERSION='5.14.0';
 const SESSION_DAYS=7;
 const CODE_MINUTES=10;
+const PASSWORD_ROUNDS=12000;
+const LOCK_WAIT_MS=15000;
 const SHEETS={
   CONFIG:['key','value'],
   USUARIOS:['id','name','email','password_hash','salt','role','status','created_at','last_seen','state_json'],
@@ -20,9 +22,11 @@ const SHEETS={
   NOTIFICACIONES:['id','user_id','data_json','created_at','updated_at']
 };
 
-function doGet(){return json_({ok:true,app:APP_NAME,version:VERSION,status:'ONLINE',timestamp:new Date().toISOString()});}
+function doGet(){try{setupBackend();return json_({ok:true,app:APP_NAME,version:VERSION,status:'ONLINE',timestamp:new Date().toISOString()});}catch(err){return json_({ok:false,error:'Backend Google no está inicializado: '+(err&&err.message?err.message:String(err))});}}
 function doPost(e){
+  var lock=LockService.getScriptLock();
   try{
+    lock.waitLock(LOCK_WAIT_MS);
     var req=parseRequest_(e),action=String(req.action||''),p=req.payload||{};
     setupBackend();
     switch(action){
@@ -40,12 +44,12 @@ function doPost(e){
       case 'adminDeleteFamily':return adminDeleteFamily_(p);
       default:return json_({ok:false,error:'Acción no reconocida: '+action});
     }
-  }catch(err){return json_({ok:false,error:err&&err.message?err.message:String(err)});}
+  }catch(err){return json_({ok:false,error:err&&err.message?err.message:String(err)});}finally{try{lock.releaseLock();}catch(_){}}
 }
 function parseRequest_(e){return e&&e.postData&&e.postData.contents?JSON.parse(e.postData.contents):{}}
 function json_(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON)}
 function setupBackend(){
-  var ss=SpreadsheetApp.getActiveSpreadsheet();
+  var ss=getDb_();
   Object.keys(SHEETS).forEach(function(name){
     var sh=ss.getSheetByName(name);if(!sh)sh=ss.insertSheet(name);
     var headers=SHEETS[name];
@@ -58,14 +62,14 @@ function register_(p){
   if(!name||!email||password.length<8)throw new Error('Nombre, correo y contraseña de al menos 8 caracteres son obligatorios');
   var sh=sheet_('USUARIOS');if(findRow_(sh,'email',email))throw new Error('Este correo ya tiene una cuenta');
   var id=Utilities.getUuid(),salt=Utilities.getUuid(),role=email===getConfig_('SUPER_ADMIN_EMAIL','josehugo.tec@gmail.com')?'super_admin':'user';
-  append_(sh,{id:id,name:name,email:email,password_hash:hash_(password,salt),salt:salt,role:role,status:'active',created_at:iso_(),last_seen:'',state_json:''});
+  append_(sh,{id:id,name:name,email:email,password_hash:hashPassword_(password,salt),salt:salt,role:role,status:'active',created_at:iso_(),last_seen:'',state_json:''});
   append_(sheet_('CUENTAS'),{id:Utilities.getUuid(),user_id:id,type:'individual',status:'active',created_at:iso_()});
   audit_(id,'register','Cuenta creada');
   return challenge_(email,'register');
 }
 function login_(p){
   var email=normEmail_(p.email),password=String(p.password||''),row=findRow_(sheet_('USUARIOS'),'email',email);
-  if(!row||row.obj.status!=='active'||hash_(password,row.obj.salt)!==row.obj.password_hash){audit_(row?row.obj.id:'','login_failed','Credenciales inválidas');throw new Error('Correo o contraseña incorrectos')}
+  if(!row||row.obj.status!=='active'||hashPassword_(password,row.obj.salt)!==row.obj.password_hash){audit_(row?row.obj.id:'','login_failed','Credenciales inválidas');throw new Error('Correo o contraseña incorrectos')}
   return challenge_(email,'login');
 }
 function challenge_(email,type){
@@ -97,7 +101,7 @@ function resetConfirm_(p){
   if(hash_(code,ch.obj.salt)!==ch.obj.code_hash)throw new Error('Código de recuperación incorrecto');
   var row=findRow_(sheet_('USUARIOS'),'email',email);if(!row)throw new Error('Usuario no encontrado');
   var password=String(p.password||'');if(password.length<8)throw new Error('La contraseña debe tener al menos 8 caracteres');
-  var salt=Utilities.getUuid();updateCell_(sheet_('USUARIOS'),row.row,4,hash_(password,salt));updateCell_(sheet_('USUARIOS'),row.row,5,salt);updateCell_(sheet_('CODIGOS_2FA'),ch.row,7,'true');audit_(row.obj.id,'password_reset','Contraseña actualizada');
+  var salt=Utilities.getUuid();updateCell_(sheet_('USUARIOS'),row.row,4,hashPassword_(password,salt));updateCell_(sheet_('USUARIOS'),row.row,5,salt);updateCell_(sheet_('CODIGOS_2FA'),ch.row,7,'true');audit_(row.obj.id,'password_reset','Contraseña actualizada');
   return json_({ok:true});
 }
 function session_(p){
@@ -151,7 +155,8 @@ function audit_(userId,action,detail){append_(sheet_('AUDITORIA'),{id:Utilities.
 function hash_(v,s){var b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(s)+'|'+String(v),Utilities.Charset.UTF_8);return b.map(function(x){return (x<0?x+256:x).toString(16).padStart(2,'0')).join('')}
 function normEmail_(e){return String(e||'').trim().toLowerCase()}
 function iso_(){return new Date().toISOString()}
-function sheet_(n){return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(n)}
+function getDb_(){var ss=SpreadsheetApp.getActiveSpreadsheet();if(ss)return ss;var id=PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');if(!id)throw new Error('Falta configurar SPREADSHEET_ID en las propiedades del proyecto de Apps Script');return SpreadsheetApp.openById(id)}
+function sheet_(n){return getDb_().getSheetByName(n)}
 function findRow_(sh,key,value){if(!sh||sh.getLastRow()<2)return null;var h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0],idx=h.indexOf(key);if(idx<0)return null;var v=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();for(var i=0;i<v.length;i++)if(String(v[i][idx])===String(value))return {row:i+2,obj:objectFrom_(h,v[i])};return null}
 function sheetObjects_(n){return sheetObjectsWithRows_(n).map(function(x){return x.obj})}
 function sheetObjectsWithRows_(n){var sh=sheet_(n);if(!sh||sh.getLastRow()<2)return [];var h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];return sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues().map(function(v,i){return {row:i+2,obj:objectFrom_(h,v)}})}
