@@ -1,6 +1,6 @@
 /** MI CONTROL — Google Apps Script backend V5.14 */
 const APP_NAME='Mi Control';
-const VERSION='5.18.0';
+const VERSION='5.19.0';
 // Base de datos principal de Mi Control (Google Sheets).
 // Se puede sobrescribir con la propiedad de script SPREADSHEET_ID.
 const DEFAULT_SPREADSHEET_ID='1jhKi8XygsPYbmh1kknII79QKwcKqzTlSa_ATOFVy-QA';
@@ -190,6 +190,12 @@ function userPublic_(u){return {id:u.id,name:u.name,email:u.email,role:u.role||'
 function validSession_(token){if(!token)return null;var row=findRow_(sheet_('SESIONES'),'token',String(token));if(!row)return null;if(new Date(row.obj.expires_at).getTime()<Date.now()){sheet_('SESIONES').deleteRow(row.row);return null}return row.obj}
 function findLatestChallenge_(email,id){var a=sheetObjectsWithRows_('CODIGOS_2FA').filter(function(x){return x.obj.email===email&&(!id||x.obj.id===id)});a.sort(function(x,y){return new Date(y.obj.created_at)-new Date(x.obj.created_at)});return a[0]||null}
 function audit_(userId,action,detail){append_(sheet_('AUDITORIA'),{id:Utilities.getUuid(),user_id:userId||'',action:action,detail:detail,created_at:iso_()})}
+function hashPassword_(password,salt){
+  var value=String(password||'');
+  var current=String(salt||'');
+  for(var i=0;i<PASSWORD_ROUNDS;i++)current=hash_(value,current);
+  return current;
+}
 function hash_(v,s){var b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(s)+'|'+String(v),Utilities.Charset.UTF_8);return b.map(function(x){return (x<0?x+256:x).toString(16).padStart(2,'0')).join('')}
 function normEmail_(e){return String(e||'').trim().toLowerCase()}
 function iso_(){return new Date().toISOString()}
