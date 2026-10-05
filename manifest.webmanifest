@@ -1,7 +1,7 @@
 {
-  "name": "Mi Hogar al Día",
-  "short_name": "Mi Hogar",
-  "description": "Mi Hogar al Día PWA V5.9.3 con administración general y vista móvil corregida.",
+  "name": "Mi Control",
+  "short_name": "Mi Control",
+  "description": "Mi Control PWA V5.9.3 con administración general y vista móvil corregida.",
   "lang": "es-PE",
   "start_url": "./",
   "scope": "./",
@@ -69,6 +69,6 @@
       ]
     }
   ],
-  "id": "./?source=pwa-v5-8-1",
-  "version": "5.9.3"
+  "id": "./?source=pwa-v5-14-0",
+  "version": "5.14.0"
 }
