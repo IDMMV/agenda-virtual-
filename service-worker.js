@@ -1,4 +1,4 @@
-const CACHE_NAME = "mi-control-v5-14-0";
+const CACHE_NAME = "mi-control-v5-15-0";
 const APP_SHELL = [
   "./",
   "./index.html",
