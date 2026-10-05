@@ -69,9 +69,14 @@ async function googleApi(action,payload={}){
   const body={action,payload:{...payload}};
   if(authState.session?.token)body.payload.sessionToken=authState.session.token;
   let response;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),17000);
   try{
-    response=await fetch(GOOGLE_BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
-  }catch(err){throw new Error('No se pudo conectar con Mi Control. Verifica tu conexión a Internet.')}
+    response=await fetch(GOOGLE_BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',signal:controller.signal});
+  }catch(err){
+    if(err?.name==='AbortError')throw new Error('El servidor tardó demasiado en responder. Intenta nuevamente.');
+    throw new Error('No se pudo conectar con Mi Control. Verifica tu conexión a Internet.');
+  }finally{clearTimeout(timer)}
   let data=null;
   try{data=await response.json()}catch(_){throw new Error('El servidor no devolvió una respuesta válida.')}
   if(!response.ok||data.ok===false)throw new Error(data.error||('Error del servidor ('+response.status+')'));
@@ -597,9 +602,19 @@ $('#newPasswordForm').onsubmit=async e=>{
   if(p1!==p2){toast('Las contraseñas no coinciden');return}
   if(!code){toast('Escribe el código de recuperación');return}
   const btn=e.submitter;btn.disabled=true;btn.textContent='Guardando…';
-  try{await googleApi('resetConfirm',{email:pending.email||authState.pendingEmail,code,challengeId:pending.challengeId||authState.pendingChallengeId,password:p1});localStorage.removeItem('mh_reset_pending');showAuth('login');toast('Contraseña actualizada. Inicia sesión nuevamente')}
-  catch(err){toast(friendlyAuthError(err))}
-  finally{btn.disabled=false;btn.textContent='Guardar nueva contraseña'}
+  try{
+    authStatus('Guardando la nueva contraseña…','info');
+    const result=await googleApi('resetConfirm',{email:pending.email||authState.pendingEmail,code,challengeId:pending.challengeId||authState.pendingChallengeId,password:p1});
+    localStorage.removeItem('mh_reset_pending');
+    showAuth('login');
+    authStatus('Contraseña actualizada. Inicia sesión nuevamente.','success');
+    toast('Contraseña actualizada. Inicia sesión nuevamente');
+  }catch(err){
+    const msg=friendlyAuthError(err);
+    const status=$('#newPasswordAuthStatus');
+    if(status){status.textContent=msg;status.className='auth-status error';status.classList.remove('hidden')}
+    toast(msg);
+  }finally{btn.disabled=false;btn.textContent='Guardar nueva contraseña'}
 };
 const resend=$('#resendConfirmBtn');
 if(resend)resend.onclick=async()=>{
