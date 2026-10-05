@@ -1,6 +1,6 @@
 /** MI CONTROL — Google Apps Script backend V5.14 */
 const APP_NAME='Mi Control';
-const VERSION='5.16.0';
+const VERSION='5.18.0';
 // Base de datos principal de Mi Control (Google Sheets).
 // Se puede sobrescribir con la propiedad de script SPREADSHEET_ID.
 const DEFAULT_SPREADSHEET_ID='1jhKi8XygsPYbmh1kknII79QKwcKqzTlSa_ATOFVy-QA';
@@ -58,7 +58,42 @@ function setupBackend(){
     var headers=SHEETS[name];
     if(sh.getLastRow()===0)sh.getRange(1,1,1,headers.length).setValues([headers]);
   });
+  migrateLegacySchemas_();
   if(!findRow_(sheet_('CONFIG'),'key','SUPER_ADMIN_EMAIL'))append_(sheet_('CONFIG'),{key:'SUPER_ADMIN_EMAIL',value:'josehugo.tec@gmail.com'});
+}
+function migrateLegacySchemas_(){
+  var sh=sheet_('CODIGOS_2FA');if(!sh)return;
+  var current=SHEETS.CODIGOS_2FA;
+  var lastCol=sh.getLastColumn();
+  if(!lastCol){sh.getRange(1,1,1,current.length).setValues([current]);return;}
+  var oldHeaders=sh.getRange(1,1,1,lastCol).getValues()[0].map(String);
+  if(oldHeaders.join('|')===current.join('|'))return;
+  var legacy=oldHeaders.indexOf('usuario_id')>=0&&oldHeaders.indexOf('codigo_hash')>=0&&oldHeaders.indexOf('tipo')>=0;
+  if(!legacy)return;
+  var rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,lastCol).getValues():[];
+  var users=sheetObjects_('USUARIOS'),byId={};
+  users.forEach(function(u){if(u.id)byId[String(u.id)]=String(u.email||'');});
+  var idx={};oldHeaders.forEach(function(h,i){idx[h]=i;});
+  var get=function(row,names){for(var i=0;i<names.length;i++){var j=idx[names[i]];if(j!==undefined&&row[j]!==undefined&&String(row[j])!=='')return row[j];}return '';};
+  var out=rows.map(function(row){
+    var uid=String(get(row,['usuario_id','user_id']));
+    var email=String(get(row,['email']));if(!email&&uid.indexOf('@')>=0)email=uid;if(!email&&byId[uid])email=byId[uid];
+    var estado=String(get(row,['used','estado'])).toLowerCase();
+    var used=(estado==='true'||estado==='1'||estado==='usado'||estado==='used'||estado==='si'||estado==='sí')?'true':'false';
+    return [
+      String(get(row,['id']))||Utilities.getUuid(),
+      email,
+      String(get(row,['code_hash','codigo_hash'])),
+      String(get(row,['salt'])),
+      String(get(row,['type','tipo'])),
+      String(get(row,['expires_at','expira'])),
+      used,
+      String(get(row,['created_at','creado']))||iso_()
+    ];
+  });
+  sh.clearContents();
+  sh.getRange(1,1,1,current.length).setValues([current]);
+  if(out.length)sh.getRange(2,1,out.length,current.length).setValues(out);
 }
 function register_(p){
   var name=String(p.name||'').trim(),email=normEmail_(p.email),password=String(p.password||'');
