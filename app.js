@@ -58,55 +58,179 @@ const seedExpenses=[
 const seedFamilies=[{id:'f1',name:'Familia Hugo',code:'HUGO-4821',createdBy:'u1',memberIds:['u1','u2','u3','u4'],createdAt:new Date(now-30*864e5).toISOString()}];
 const state={users:JSON.parse(localStorage.getItem('mh_users')||'null')||seedUsers,families:JSON.parse(localStorage.getItem('mh_families')||'null')||seedFamilies,tasks:JSON.parse(localStorage.getItem('mh_tasks')||'null')||seedTasks,notes:JSON.parse(localStorage.getItem('mh_notes')||'null')||[],expenses:JSON.parse(localStorage.getItem('mh_expenses')||'null')||seedExpenses,postits:JSON.parse(localStorage.getItem('mh_postits')||'null')||null,chatMessages:JSON.parse(localStorage.getItem('mh_chat')||'null')||[{id:'m1',familyId:'f1',userId:'u1',text:'Bienvenidos al chat familiar 👋',at:new Date(now-3600000).toISOString()}],currentFamilyId:localStorage.getItem('mh_current_family')||'f1',currentUserId:localStorage.getItem('mh_current_user')||'u1',view:localStorage.getItem('mh_view')||'pendientes',filter:'Todos',search:'',priority:'Todas',calendarDate:new Date(),selectedDate:new Date(),boardFocus:'all',expensePeriod:'month',expenseCategory:'Todas',expenseUser:'Todos',gamePlayers:[],gameResult:'',rewardResult:'',wheelTurns:0,rewardTurns:0,rewards:JSON.parse(localStorage.getItem('mh_rewards')||'null')||defaultRewards(),rewardDraw:JSON.parse(localStorage.getItem('mh_reward_draw')||'null')||null,documents:JSON.parse(localStorage.getItem('mh_documents')||'null')||[],documentSearch:'',documentArea:'Todas'};
 
-const SUPABASE_URL='https://zvxpwspzpmfizagoybhy.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY='sb_publishable_CPxi7plhmZ-Vqlz7QYf1eA_wQRpvUxn';
-const APP_URL='https://idmmv.github.io/Gestion-Del-Hogar/';
-const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-let globalRole='user';let superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],tab:'resumen'};
-const authState={accounts:[],session:null,recovery:false};
-function showAuth(panel='login'){const screen=$('#authScreen');screen.classList.remove('hidden');$$('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b.dataset.authTab===panel));$('#loginForm').classList.toggle('hidden',panel!=='login');$('#registerForm').classList.toggle('hidden',panel!=='register');$('#resetForm').classList.add('hidden');$('#verifyForm').classList.add('hidden');$('#resetSentForm').classList.add('hidden');$('#newPasswordForm').classList.add('hidden')}
+const GOOGLE_BACKEND_URL='/api/google-backend';
+const APP_URL=location.origin+location.pathname;
+let globalRole='user';
+let superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],audit:[],tab:'resumen'};
+const authState={accounts:[],session:null,recovery:false,pendingChallengeId:'',pendingEmail:''};
+
+async function googleApi(action,payload={}) {
+  const body={action,payload:{...payload}};
+  if(authState.session?.token) body.payload.sessionToken=authState.session.token;
+  const response=await fetch(GOOGLE_BACKEND_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  let data;
+  try{data=await response.json()}catch(_){throw new Error('El backend de Google no devolvió una respuesta válida')}
+  if(!response.ok||data.ok===false)throw new Error(data.error||'No se pudo completar la operación');
+  return data;
+}
+
+function showAuth(panel='login'){
+  const screen=$('#authScreen');screen.classList.remove('hidden');
+  $$('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b.dataset.authTab===panel));
+  $('#loginForm').classList.toggle('hidden',panel!=='login');
+  $('#registerForm').classList.toggle('hidden',panel!=='register');
+  $('#resetForm').classList.add('hidden');
+  $('#verifyForm').classList.add('hidden');
+  $('#resetSentForm').classList.add('hidden');
+  $('#newPasswordForm').classList.add('hidden');
+}
 function hideAuth(){const screen=$('#authScreen');screen.classList.add('hidden')}
-function showEmailSent(email,type='confirm'){showAuth('login');$('#loginForm').classList.add('hidden');$('#registerForm').classList.add('hidden');$('#resetForm').classList.add('hidden');$('#resetSentForm').classList.remove('hidden');$('#resetSentMessage').innerHTML=type==='confirm'?`📧 Enviamos un enlace de confirmación a <b>${esc(email)}</b>.<br>Abre ese enlace para activar tu cuenta y regresar a esta página.`:`📧 Enviamos un enlace de recuperación a <b>${esc(email)}</b>.<br>Abre ese enlace para crear una nueva contraseña.`}
-function createPersonalSpace(userId,name){const fid='personal-'+userId;let f=state.families.find(x=>x.id===fid);if(!f){f={id:fid,name:'Espacio personal de '+name,code:'PERSONAL',createdBy:userId,memberIds:[userId],createdAt:new Date().toISOString(),personal:true};state.families.push(f)}return f}
+function show2FA(email,challengeId,message='Enviamos un código de seguridad a tu correo.'){
+  authState.pendingEmail=email;authState.pendingChallengeId=challengeId;
+  localStorage.setItem('mh_pending_2fa',JSON.stringify({email,challengeId}));
+  $('#verifyEmail').value=email;
+  $('#verifyCode').disabled=false;
+  $('#verifyCode').value='';
+  $('#localVerificationNote').innerHTML='🔐 '+message+' El código vence en 10 minutos.';
+  showAuth('login');
+  $('#loginForm').classList.add('hidden');
+  $('#registerForm').classList.add('hidden');
+  $('#verifyForm').classList.remove('hidden');
+}
+function showEmailSent(email,type='reset'){
+  showAuth('login');
+  $('#loginForm').classList.add('hidden');
+  $('#registerForm').classList.add('hidden');
+  $('#resetSentForm').classList.remove('hidden');
+  $('#resetSentMessage').innerHTML=type==='reset'
+    ?`📧 Enviamos un código de recuperación a <b>${esc(email)}</b>.`
+    :`📧 Revisa tu correo: <b>${esc(email)}</b>.`;
+}
+function createPersonalSpace(userId,name){
+  const fid='personal-'+userId;let f=state.families.find(x=>x.id===fid);
+  if(!f){f={id:fid,name:'Espacio personal de '+name,code:'PERSONAL',createdBy:userId,memberIds:[userId],createdAt:new Date().toISOString(),personal:true};state.families.push(f)}
+  return f;
+}
 function mergeUser(u){const i=state.users.findIndex(x=>x.id===u.id);if(i>=0)state.users[i]={...state.users[i],...u};else state.users.push(u)}
 function mergeFamily(f){const i=state.families.findIndex(x=>x.id===f.id);if(i>=0)state.families[i]={...state.families[i],...f};else state.families.push(f)}
-async function ensureSupabaseWorkspace(session){
-  const au=session.user, meta=au.user_metadata||{}, name=(meta.full_name||meta.name||au.email?.split('@')[0]||'Usuario').trim();
-  await supabaseClient.from('profiles').upsert({id:au.id,full_name:name,presence:'online',last_seen:new Date().toISOString()},{onConflict:'id'});
-  let {data:memberships,error}=await supabaseClient.from('family_members').select('family_id,role,families(id,name,invite_code,created_by)').eq('user_id',au.id);
-  if(error)console.warn('No se pudieron leer familias:',error.message);
-  if(!memberships?.length){
-    const mode=meta.account_mode||'individual';
-    const requested=(meta.family_name||'').trim();
-    const familyName=mode==='family'?(requested||`Familia de ${name}`):`Espacio personal de ${name}`;
-    const created=await supabaseClient.rpc('create_family',{p_name:familyName});
-    if(created.error)throw created.error;
-    ({data:memberships,error}=await supabaseClient.from('family_members').select('family_id,role,families(id,name,invite_code,created_by)').eq('user_id',au.id));
-    if(error)throw error;
+
+function applyBackendSession(result){
+  if(!result?.sessionToken)throw new Error('Google no devolvió una sesión válida');
+  authState.session={
+    accountId:result.user.id,
+    userId:result.user.id,
+    email:result.user.email,
+    name:result.user.name,
+    role:result.user.role||'user',
+    token:result.sessionToken,
+    expiresAt:result.expiresAt||'',
+    at:new Date().toISOString()
+  };
+  authState.accounts=[{id:result.user.id,userId:result.user.id,name:result.user.name,email:result.user.email,mode:'individual'}];
+  localStorage.setItem('mh_google_session',result.sessionToken);
+  globalRole=result.user.role||'user';
+  state.currentUserId=result.user.id;
+
+  const remote=result.state;
+  if(remote){
+    if(Array.isArray(remote.users))state.users=remote.users;
+    if(Array.isArray(remote.families))state.families=remote.families;
+    if(Array.isArray(remote.tasks))state.tasks=remote.tasks;
+    if(Array.isArray(remote.notes))state.notes=remote.notes;
+    if(Array.isArray(remote.expenses))state.expenses=remote.expenses;
+    if(Array.isArray(remote.chatMessages))state.chatMessages=remote.chatMessages;
+    if(Array.isArray(remote.postits))state.postits=remote.postits;
+    if(Array.isArray(remote.rewards))state.rewards=remote.rewards;
+    if(remote.rewardDraw!==undefined)state.rewardDraw=remote.rewardDraw;
+    if(Array.isArray(remote.documents)&&remote.documents.length)state.documents=remote.documents;
+    if(remote.currentFamilyId)state.currentFamilyId=remote.currentFamilyId;
   }
-  const fams=[];
-  for(const m of memberships||[]){
-    const raw=Array.isArray(m.families)?m.families[0]:m.families;if(!raw)continue;
-    const {data:fm}=await supabaseClient.from('family_members').select('user_id,role,profiles(id,full_name,avatar_path,presence,last_seen)').eq('family_id',m.family_id);
-    const ids=[];
-    for(const row of fm||[]){const p=Array.isArray(row.profiles)?row.profiles[0]:row.profiles;if(!p)continue;ids.push(row.user_id);mergeUser({id:row.user_id,name:p.full_name||'Integrante',role:row.role==='admin'?'Administradora':'Integrante',photo:p.avatar_path||'',presence:p.presence||'offline',lastSeen:p.last_seen||new Date().toISOString()})}
-    if(!ids.includes(au.id)){ids.push(au.id);mergeUser({id:au.id,name,role:m.role==='admin'?'Administradora':'Integrante',photo:'',presence:'online',lastSeen:new Date().toISOString()})}
-    const f={id:raw.id,name:raw.name,code:raw.invite_code||'',createdBy:raw.created_by,memberIds:ids,createdAt:new Date().toISOString(),personal:(meta.account_mode||'individual')==='individual'&&memberships.length===1};mergeFamily(f);fams.push(f)
+
+  mergeUser({id:result.user.id,name:result.user.name,email:result.user.email,role:result.user.role==='super_admin'?'Administradora':'Integrante',presence:'online',lastSeen:new Date().toISOString()});
+  if(!state.families.some(f=>(f.memberIds||[]).includes(result.user.id))){
+    const f=createPersonalSpace(result.user.id,result.user.name);
+    state.currentFamilyId=f.id;
+  }else{
+    const remembered=localStorage.getItem('mh_current_family');
+    const allowed=state.families.filter(f=>(f.memberIds||[]).includes(result.user.id));
+    if(!allowed.some(f=>f.id===state.currentFamilyId))state.currentFamilyId=allowed.find(f=>f.id===remembered)?.id||allowed[0]?.id||state.currentFamilyId;
   }
-  authState.session={accountId:au.id,userId:au.id,email:au.email,at:new Date().toISOString()};
-  authState.accounts=[{id:au.id,userId:au.id,name,email:au.email,mode:meta.account_mode||'individual'}];
-  state.currentUserId=au.id;
-  const remembered=localStorage.getItem('mh_current_family');state.currentFamilyId=fams.some(f=>f.id===remembered)?remembered:(fams[0]?.id||createPersonalSpace(au.id,name).id);
-  save();await loadGlobalRole();hideAuth();$('#welcomeScreen').classList.add('hidden');const actionBar=$('#globalActionBar');if(actionBar)actionBar.classList.remove('hidden');render();updateAccountUI();
+  save(false);
+  hideAuth();
+  $('#welcomeScreen').classList.add('hidden');
+  const actionBar=$('#globalActionBar');if(actionBar)actionBar.classList.remove('hidden');
+  render();updateAccountUI();
+  setTimeout(()=>syncBackendState(),300);
 }
 function updateAccountUI(){const el=$('#accountEmail');if(el)el.textContent=authState.session?.email||''}
-async function loadGlobalRole(){try{const {data,error}=await supabaseClient.rpc('get_my_global_role');if(error)throw error;globalRole=data||'user'}catch(err){console.warn('No se pudo consultar el rol global por RPC',err);try{const {data:{user:authUser}}=await supabaseClient.auth.getUser();const metaRole=authUser?.app_metadata?.global_role||authUser?.user_metadata?.global_role;const ownerEmail=(authUser?.email||authState.session?.email||'').toLowerCase();globalRole=(metaRole==='super_admin'||ownerEmail==='josehugo.tec@gmail.com')?'super_admin':'user'}catch(_){globalRole='user'}}$$('[data-super-admin-only]').forEach(el=>el.classList.toggle('hidden',globalRole!=='super_admin'));const adminBtn=$('#globalAdminBtn');if(adminBtn)adminBtn.classList.toggle('hidden',globalRole!=='super_admin');const bar=$('#globalActionBar');if(bar)bar.classList.toggle('hidden',!authState.session);if(globalRole==='super_admin'){superAdminData.loaded=false;setTimeout(()=>loadSuperAdminData(true),0)}return globalRole}
+
+async function loadGlobalRole(){
+  globalRole=authState.session?.role||'user';
+  $$('[data-super-admin-only]').forEach(el=>el.classList.toggle('hidden',globalRole!=='super_admin'));
+  const adminBtn=$('#globalAdminBtn');if(adminBtn)adminBtn.classList.toggle('hidden',globalRole!=='super_admin');
+  const bar=$('#globalActionBar');if(bar)bar.classList.toggle('hidden',!authState.session);
+  if(globalRole==='super_admin'){superAdminData.loaded=false;setTimeout(()=>loadSuperAdminData(true),0)}
+  return globalRole;
+}
 function isSuperAdmin(){return globalRole==='super_admin'}
-async function loadSuperAdminData(force=false){if(!isSuperAdmin())return;if(superAdminData.loading||(!force&&superAdminData.loaded))return;superAdminData.loading=true;superAdminData.error='';if(state.view==='superadmin')render();try{const [profilesRes,familiesRes,membersRes,docsRes]=await Promise.all([supabaseClient.from('profiles').select('id,full_name,presence,last_seen,created_at').order('created_at',{ascending:false}),supabaseClient.from('families').select('id,name,code,created_by,created_at').order('created_at',{ascending:false}),supabaseClient.from('family_members').select('family_id,user_id,role,joined_at'),supabaseClient.from('admin_document_inventory').select('*').limit(1000)]);const critical=[profilesRes,familiesRes,membersRes].find(x=>x.error);if(critical)throw critical.error;superAdminData.profiles=profilesRes.data||[];superAdminData.families=familiesRes.data||[];superAdminData.members=membersRes.data||[];superAdminData.documents=docsRes.error?[]:(docsRes.data||[]);superAdminData.loaded=true}catch(err){superAdminData.error=err.message||String(err)}finally{superAdminData.loading=false;if(state.view==='superadmin')render()}}
-function superAdminView(){if(!isSuperAdmin())return '<div class="content"><div class="card empty">Acceso exclusivo del administrador general.</div></div>';const d=superAdminData,tab=d.tab||'resumen',memberCount=id=>d.members.filter(m=>m.family_id===id).length,ownerName=id=>d.profiles.find(p=>p.id===id)?.full_name||'Sin identificar',totalBytes=d.documents.reduce((s,x)=>s+Number(x.size_bytes||0),0),tabs=[['resumen','📊 Resumen'],['usuarios','👤 Usuarios'],['familias','👨‍👩‍👧‍👦 Familias'],['almacenamiento','💾 Almacenamiento'],['configuracion','⚙️ Configuración'],['auditoria','🧾 Auditoría']];let body='';if(d.loading)body='<div class="card superadmin-loading">Cargando información de Supabase…</div>';else if(d.error)body=`<div class="superadmin-error"><b>No se pudo cargar el panel.</b><br>${esc(d.error)}<br><small>Verifica que ejecutaste el SQL de superadministrador general.</small></div>`;else if(tab==='resumen')body=`<div class="superadmin-stats"><div class="card superadmin-stat"><i>👤</i><div><b>${d.profiles.length}</b><span>Usuarios registrados</span></div></div><div class="card superadmin-stat"><i>👨‍👩‍👧‍👦</i><div><b>${d.families.length}</b><span>Grupos familiares</span></div></div><div class="card superadmin-stat"><i>🔗</i><div><b>${d.members.length}</b><span>Membresías</span></div></div><div class="card superadmin-stat"><i>💾</i><div><b>${formatBytes(totalBytes)}</b><span>Documentos compartidos</span></div></div></div><div class="config-grid"><div class="card config-card"><h3>Actividad reciente</h3>${d.profiles.slice(0,6).map(p=>`<div class="admin-shared-row"><div><b>${esc(p.full_name||'Usuario')}</b><span>${p.last_seen?'Último acceso: '+fmt(p.last_seen):'Sin acceso registrado'}</span></div><span class="status-pill">${esc(p.presence||'offline')}</span></div>`).join('')||'<p class="muted">Sin usuarios.</p>'}</div><div class="card config-card"><h3>Familias recientes</h3>${d.families.slice(0,6).map(f=>`<div class="admin-shared-row"><div><b>${esc(f.name)}</b><span>${memberCount(f.id)} integrante(s) · ${esc(f.code||'Sin código')}</span></div></div>`).join('')||'<p class="muted">Sin familias.</p>'}</div></div>`;else if(tab==='usuarios')body=`<div class="card"><div class="section-head"><h2>Usuarios registrados</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Familias</th><th>Último acceso</th><th>Rol global</th></tr></thead><tbody>${d.profiles.map(p=>`<tr><td><b>${esc(p.full_name||'Sin nombre')}</b><br><small>${esc(p.id)}</small></td><td><span class="status-pill">${esc(p.presence||'offline')}</span></td><td>${d.members.filter(m=>m.user_id===p.id).length}</td><td>${p.last_seen?fmt(p.last_seen):'Sin registro'}</td><td>${p.id===state.currentUserId?'<span class="role-pill">Superadmin</span>':'Usuario'}</td></tr>`).join('')}</tbody></table></div></div>`;else if(tab==='familias')body=`<div class="card"><div class="section-head"><h2>Grupos familiares</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Familia</th><th>Código</th><th>Propietario</th><th>Integrantes</th><th>Creada</th><th>Acciones</th></tr></thead><tbody>${d.families.map(f=>`<tr><td><b>${esc(f.name)}</b></td><td>${esc(f.code||'—')}</td><td>${esc(ownerName(f.created_by))}</td><td>${memberCount(f.id)}</td><td>${f.created_at?fmt(f.created_at):'—'}</td><td><div class="admin-actions"><button class="btn danger" data-super-delete-family="${f.id}" data-family-name="${esc(f.name)}">Eliminar</button></div></td></tr>`).join('')}</tbody></table></div></div>`;else if(tab==='almacenamiento')body=`<div class="superadmin-stats"><div class="card superadmin-stat"><i>📄</i><div><b>${d.documents.length}</b><span>Documentos compartidos</span></div></div><div class="card superadmin-stat"><i>💾</i><div><b>${formatBytes(totalBytes)}</b><span>Espacio contabilizado</span></div></div></div><div class="card"><div class="section-head"><h2>Inventario compartido</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Documento</th><th>Propietario</th><th>Familia</th><th>Visibilidad</th><th>Tamaño</th><th>Vencimiento</th></tr></thead><tbody>${d.documents.map(x=>`<tr><td><b>${esc(x.name||x.original_filename||'Documento')}</b><br><small>${esc(x.document_type||x.area||'')}</small></td><td>${esc(x.owner_name||'—')}</td><td>${esc(x.family_name||'—')}</td><td>${esc(x.visibility||'—')}</td><td>${formatBytes(Number(x.size_bytes||0))}</td><td>${x.expires_on?esc(x.expires_on):'—'}</td></tr>`).join('')||'<tr><td colspan="6">No hay documentos compartidos o la vista aún no fue creada.</td></tr>'}</tbody></table></div></div>`;else if(tab==='configuracion')body=`<div class="config-grid"><div class="card config-card"><h3>🔐 Seguridad</h3><p class="muted">Acceso protegido mediante Supabase Auth, RLS y el rol global super_admin.</p><span class="status-pill">Protección activa</span></div><div class="card config-card"><h3>📁 Documentos privados</h3><p class="muted">El panel no abre archivos privados; solo inventaría documentos compartidos.</p><span class="status-pill">Privacidad activa</span></div><div class="card config-card"><h3>📏 Límites</h3><p class="muted">La edición global de cuotas se incorporará con una tabla de configuración.</p></div><div class="card config-card"><h3>🧩 Módulos</h3><p class="muted">Tablero, calendario, gastos, pizarra, juegos y documentos están activos.</p></div></div>`;else body=`<div class="card config-card"><h3>Auditoría administrativa</h3><p class="muted">Registro de esta sesión. La auditoría permanente requerirá la tabla audit_logs.</p><div class="audit-row"><b>Cuenta actual</b><span>${esc(authState.session?.email||'')}</span><span>${fmt(new Date())}</span></div><div class="audit-row"><b>Rol validado</b><span>super_admin</span><span>Activo</span></div></div>`;return `<div class="content superadmin-shell"><div class="card superadmin-hero"><h2>🛡️ Administración general</h2><p>Control global de usuarios, familias, almacenamiento y seguridad.</p><span class="superadmin-badge">✓ Superadministrador verificado</span></div><div class="superadmin-tabs">${tabs.map(([id,label])=>`<button class="${tab===id?'active':''}" data-super-tab="${id}">${label}</button>`).join('')}</div>${body}</div>`}
-async function deleteFamilyAsSuperAdmin(id,name){const typed=prompt(`Esta acción eliminará definitivamente “${name}” y sus datos relacionados.\n\nEscribe ELIMINAR para continuar:`);if(typed!=='ELIMINAR'){toast('Eliminación cancelada');return}const {error}=await supabaseClient.rpc('super_admin_delete_family',{p_family_id:id});if(error){toast('No se pudo eliminar: '+friendlyAuthError(error));return}superAdminData.loaded=false;await loadSuperAdminData(true);toast('Grupo familiar eliminado')}
-async function logout(){try{await supabaseClient.auth.signOut()}catch(err){console.warn('Error al cerrar sesión',err)}authState.session=null;globalRole='user';superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],tab:'resumen'};const bar=$('#globalActionBar');if(bar)bar.classList.add('hidden');showAuth('login');toast('Sesión cerrada')}
-function friendlyAuthError(error){const m=(error?.message||'').toLowerCase();if(m.includes('invalid login credentials'))return 'Correo o contraseña incorrectos';if(m.includes('email not confirmed'))return 'Primero debes confirmar tu correo';if(m.includes('user already registered'))return 'Este correo ya tiene una cuenta';if(m.includes('password should be'))return 'La contraseña debe tener al menos 6 caracteres';if(m.includes('rate limit'))return 'Se realizaron demasiados intentos. Espera unos minutos';return error?.message||'No se pudo completar la operación'}
+async function loadSuperAdminData(force=false){
+  if(!isSuperAdmin())return;
+  if(superAdminData.loading||(!force&&superAdminData.loaded))return;
+  superAdminData.loading=true;superAdminData.error='';
+  if(state.view==='superadmin')render();
+  try{
+    const d=await googleApi('adminData',{});
+    superAdminData.profiles=d.profiles||[];
+    superAdminData.families=d.families||[];
+    superAdminData.members=d.members||[];
+    superAdminData.documents=d.documents||[];
+    superAdminData.audit=d.audit||[];
+    superAdminData.loaded=true;
+  }catch(err){superAdminData.error=err.message||String(err)}
+  finally{superAdminData.loading=false;if(state.view==='superadmin')render()}
+}
+function superAdminView(){
+  if(!isSuperAdmin())return '<div class="content"><div class="card empty">Acceso exclusivo del administrador general.</div></div>';
+  const d=superAdminData,tab=d.tab||'resumen';
+  const memberCount=id=>d.members.filter(m=>m.family_id===id).length;
+  const ownerName=id=>d.profiles.find(p=>p.id===id)?.full_name||'Sin identificar';
+  const tabs=[['resumen','📊 Resumen'],['usuarios','👤 Usuarios'],['familias','👨‍👩‍👧‍👦 Familias'],['almacenamiento','💾 Almacenamiento'],['configuracion','⚙️ Configuración'],['auditoria','🧾 Auditoría']];
+  let body='';
+  if(d.loading)body='<div class="card superadmin-loading">Cargando información desde Google Sheets…</div>';
+  else if(d.error)body=`<div class="superadmin-error"><b>No se pudo cargar el panel.</b><br>${esc(d.error)}</div>`;
+  else if(tab==='resumen')body=`<div class="superadmin-stats"><div class="card superadmin-stat"><i>👤</i><div><b>${d.profiles.length}</b><span>Usuarios registrados</span></div></div><div class="card superadmin-stat"><i>👨‍👩‍👧‍👦</i><div><b>${d.families.length}</b><span>Grupos familiares</span></div></div><div class="card superadmin-stat"><i>🔗</i><div><b>${d.members.length}</b><span>Membresías</span></div></div></div><div class="config-grid"><div class="card config-card"><h3>Actividad reciente</h3>${d.profiles.slice(0,6).map(p=>`<div class="admin-shared-row"><div><b>${esc(p.full_name||'Usuario')}</b><span>${p.last_seen?'Último acceso: '+fmt(p.last_seen):'Sin acceso registrado'}</span></div><span class="status-pill">${esc(p.status||'active')}</span></div>`).join('')||'<p class="muted">Sin usuarios.</p>'}</div><div class="card config-card"><h3>Familias</h3>${d.families.slice(0,6).map(f=>`<div class="admin-shared-row"><div><b>${esc(f.name||'Familia')}</b><span>${memberCount(f.id)} integrante(s)</span></div></div>`).join('')||'<p class="muted">Sin familias.</p>'}</div></div>`;
+  else if(tab==='usuarios')body=`<div class="card"><div class="section-head"><h2>Usuarios registrados</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Último acceso</th><th>Rol</th></tr></thead><tbody>${d.profiles.map(p=>`<tr><td><b>${esc(p.full_name||'Sin nombre')}</b><br><small>${esc(p.email||'')}</small></td><td>${esc(p.status||'active')}</td><td>${p.last_seen?fmt(p.last_seen):'Sin registro'}</td><td>${esc(p.role||'user')}</td></tr>`).join('')}</tbody></table></div></div>`;
+  else if(tab==='familias')body=`<div class="card"><div class="section-head"><h2>Grupos familiares</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Familia</th><th>Propietario</th><th>Integrantes</th><th>Acciones</th></tr></thead><tbody>${d.families.map(f=>`<tr><td><b>${esc(f.name||'Familia')}</b></td><td>${esc(ownerName(f.createdBy||f.created_by))}</td><td>${memberCount(f.id)}</td><td><button class="btn danger" data-super-delete-family="${esc(f.id)}" data-family-name="${esc(f.name||'Familia')}">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`;
+  else if(tab==='almacenamiento')body=`<div class="card config-card"><h3>💾 Almacenamiento</h3><p class="muted">Los datos estructurados se almacenan en Google Sheets. Los archivos grandes se migrarán a Google Drive.</p><span class="status-pill">Google activo</span></div>`;
+  else if(tab==='configuracion')body=`<div class="config-grid"><div class="card config-card"><h3>🔐 Seguridad</h3><p class="muted">Contraseñas con hash y salt, sesiones con token, 2FA por correo y auditoría en Google Sheets.</p><span class="status-pill">Google Backend</span></div><div class="card config-card"><h3>🗄️ Datos</h3><p class="muted">Usuarios, sesiones, auditoría y datos de la aplicación están en las hojas del backend.</p></div></div>`;
+  else body=`<div class="card config-card"><h3>Auditoría</h3>${d.audit.slice(-20).reverse().map(a=>`<div class="audit-row"><b>${esc(a[2]||'')}</b><span>${esc(a[3]||'')}</span><span>${esc(a[0]||'')}</span></div>`).join('')||'<p class="muted">Sin eventos.</p>'}</div>`;
+  return `<div class="content superadmin-shell"><div class="card superadmin-hero"><h2>🛡️ Administración general</h2><p>Control global conectado a Google Sheets.</p><span class="superadmin-badge">✓ Google Backend</span></div><div class="superadmin-tabs">${tabs.map(([id,label])=>`<button class="${tab===id?'active':''}" data-super-tab="${id}">${label}</button>`).join('')}</div>${body}</div>`;
+}
+async function deleteFamilyAsSuperAdmin(id,name){
+  const typed=prompt(`Esta acción eliminará definitivamente “${name}” y sus datos relacionados.\\n\\nEscribe ELIMINAR para continuar:`);
+  if(typed!=='ELIMINAR'){toast('Eliminación cancelada');return}
+  try{await googleApi('adminDeleteFamily',{familyId:id});superAdminData.loaded=false;await loadSuperAdminData(true);toast('Grupo familiar eliminado')}
+  catch(err){toast('No se pudo eliminar: '+friendlyAuthError(err))}
+}
+async function logout(){
+  try{if(authState.session?.token)await googleApi('logout',{})}catch(err){console.warn('Error al cerrar sesión',err)}
+  localStorage.removeItem('mh_google_session');localStorage.removeItem('mh_pending_2fa');
+  authState.session=null;authState.pendingChallengeId='';authState.pendingEmail='';globalRole='user';
+  superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],audit:[],tab:'resumen'};
+  const bar=$('#globalActionBar');if(bar)bar.classList.add('hidden');showAuth('login');toast('Sesión cerrada');
+}
+function friendlyAuthError(error){
+  const m=(error?.message||String(error)||'').toLowerCase();
+  if(m.includes('invalid login')||m.includes('credenciales'))return 'Correo o contraseña incorrectos';
+  if(m.includes('already')||m.includes('ya tiene'))return 'Este correo ya tiene una cuenta';
+  if(m.includes('venc'))return 'El código o la sesión ha vencido';
+  if(m.includes('rate limit'))return 'Se realizaron demasiados intentos. Espera unos minutos';
+  return error?.message||String(error)||'No se pudo completar la operación';
+}
 
 state.users=state.users.map((u,i)=>({...u,presence:u.presence||(i<2?'online':i===2?'away':'offline'),lastSeen:u.lastSeen||new Date(now-i*3600000).toISOString()}));
 state.tasks=state.tasks.map(t=>({...t,familyId:t.familyId||'f1',archived:t.archived||false,repeat:t.repeat||'none',requirePhoto:!!t.requirePhoto,rewardClaimed:!!t.rewardClaimed,reward:t.reward||'',rewardedAt:t.rewardedAt||'',rewardedBy:t.rewardedBy||'',comments:t.comments||[],history:t.history||[mkHistory(t.creatorId,'created','Creó la actividad',t.createdAt)]}));
