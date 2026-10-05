@@ -206,10 +206,11 @@ function saveState_(p) {
     currentFamilyId:state.currentFamilyId || '',
     currentUserId:user.id
   };
-  const json = JSON.stringify(safe);
+  let json = JSON.stringify(safe);
   if (json.length > 45000) {
     // Las imágenes/documentos locales no deben vivir en una celda de Sheets.
     safe.documents = [];
+    json = JSON.stringify(safe);
   }
   upsertAccountState_(user,safe);
   return {ok:true,savedAt:new Date().toISOString()};
