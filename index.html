@@ -585,7 +585,7 @@ body{background:linear-gradient(180deg,#f7faff 0,#f3f6fb 100%);color:var(--txt)}
 
 
 /* V5.14 Google Backend */
-.supabase-live{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:99px;padding:5px 8px}
+.google-live{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:99px;padding:5px 8px}
 
 
 /* V5.9.8 PWA instalable */
@@ -628,7 +628,7 @@ html,body{max-width:100%;overflow-x:hidden}
   }
   .topbar .user-box>div{min-width:0!important;flex:1!important;overflow:hidden!important}
   .account-badge{display:block!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important}
-  .supabase-live{font-size:9px!important;padding:2px 5px!important;white-space:nowrap!important}
+  .google-live{font-size:9px!important;padding:2px 5px!important;white-space:nowrap!important}
   .top-logout-btn{display:none!important}
   .content{padding-top:12px!important}
 }
@@ -785,7 +785,7 @@ body.auth-open .app,body.auth-open .bottom-nav,body.auth-open .fab{visibility:hi
 <aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-logo">💼</div><div><strong id="familyNameSide">Mi Control</strong><small>Gestor de Control Personal</small></div></div><div class="mobile-profile-card"><span class="avatar" id="sideAvatar"></span><div><b id="sideUserName">Usuario</b><small id="sideUserRole">Cuenta personal</small></div></div><nav class="nav" id="nav"><button data-view="pendientes">📒 <span>Mi Agenda</span><b id="pendingCountNav">0</b></button><button data-view="calendario">📅 <span>Calendario</span></button><button data-view="gastos">💰 <span>Gastos</span></button><button data-view="documentos">📁 <span>Documentos</span></button><button data-view="backend" data-admin-only>🔐 <span>Backend</span></button><button data-view="dashboard" data-admin-only>📊 <span>Dashboard</span></button><button data-view="familia" data-admin-only>👨‍👩‍👧‍👦 <span>Mi familia</span></button><button type="button" id="logoutBtn" class="logout-btn">🚪 <span>Cerrar sesión</span></button></nav></aside>
 <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 <main class="main">
-<header class="topbar"><button class="icon-btn" id="menuBtn" type="button" aria-label="Abrir menú">☰</button><div class="top-title"><h1 id="pageTitle">Inicio</h1><p id="pageSubtitle">Resumen de tus finanzas personales</p></div><div class="finance-search">⌕ <input id="financeSearch" placeholder="Buscar movimientos, categorías, notas, documentos..." aria-label="Buscar"></div><button class="icon-btn" id="themeBtn" type="button" title="Cambiar tema" aria-label="Cambiar tema">☼</button><button class="icon-btn" id="notificationBtn" type="button" title="Notificaciones" aria-label="Notificaciones">🔔</button><div class="top-profile"><div class="user-box"><button type="button" id="profilePhotoBtn" class="profile-photo-btn" title="Editar perfil"><span class="avatar" id="currentAvatar"></span><span class="profile-camera">📷</span></button><div class="profile-summary"><b id="currentUserName">Usuario</b><small class="account-badge" id="accountEmail"></small><small class="supabase-live">● Google Backend</small></div><button type="button" id="topLogoutBtn" class="top-logout-btn" title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button></div></div></header>
+<header class="topbar"><button class="icon-btn" id="menuBtn" type="button" aria-label="Abrir menú">☰</button><div class="top-title"><h1 id="pageTitle">Inicio</h1><p id="pageSubtitle">Resumen de tus finanzas personales</p></div><div class="finance-search">⌕ <input id="financeSearch" placeholder="Buscar movimientos, categorías, notas, documentos..." aria-label="Buscar"></div><button class="icon-btn" id="themeBtn" type="button" title="Cambiar tema" aria-label="Cambiar tema">☼</button><button class="icon-btn" id="notificationBtn" type="button" title="Notificaciones" aria-label="Notificaciones">🔔</button><div class="top-profile"><div class="user-box"><button type="button" id="profilePhotoBtn" class="profile-photo-btn" title="Editar perfil"><span class="avatar" id="currentAvatar"></span><span class="profile-camera">📷</span></button><div class="profile-summary"><b id="currentUserName">Usuario</b><small class="account-badge" id="accountEmail"></small><small class="google-live">● Google Backend</small></div><button type="button" id="topLogoutBtn" class="top-logout-btn" title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button></div></div></header>
 <section id="content"></section>
 </main>
 </div>
