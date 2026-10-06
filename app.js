@@ -97,6 +97,15 @@ let state = {
     sessionsCompleted: 3,
     selectedTaskId: null
   },
+  recurringExpenses: [
+    { id: 'rec-1', title: 'Luz (Electricidad)', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 95.00, dueDay: 18, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
+    { id: 'rec-2', title: 'Agua potable', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 45.00, dueDay: 20, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
+    { id: 'rec-3', title: 'Gas natural / balón', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 65.00, dueDay: 15, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
+    { id: 'rec-4', title: 'Planes Celulares', category: 'Telecomunicaciones (Celular, Internet)', amount: 70.00, dueDay: 12, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
+    { id: 'rec-5', title: 'Internet Fibra Óptica', category: 'Telecomunicaciones (Celular, Internet)', amount: 110.00, dueDay: 10, type: 'fixed', paidThisMonth: true, lastPaidDate: new Date().toISOString().slice(0, 10) },
+    { id: 'rec-6', title: 'Préstamo a papá', category: 'Préstamo Familiar / Personal', amount: 200.00, dueDay: 25, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
+    { id: 'rec-7', title: 'Alimentación Fija / Mercado', category: 'Alimentación Fija', amount: 600.00, dueDay: 30, type: 'variable', paidThisMonth: false, lastPaidDate: null }
+  ],
   googleToken: null,
   appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
   notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted'
@@ -110,6 +119,7 @@ try {
     if (parsed.transactions) state.transactions = parsed.transactions;
     if (parsed.debts) state.debts = parsed.debts;
     if (parsed.savings) state.savings = parsed.savings;
+    if (parsed.recurringExpenses) state.recurringExpenses = parsed.recurringExpenses;
     if (parsed.agenda) state.agenda = parsed.agenda;
     if (parsed.view) state.view = parsed.view;
     if (parsed.theme) state.theme = parsed.theme;
@@ -125,6 +135,7 @@ function saveState() {
     transactions: state.transactions,
     debts: state.debts,
     savings: state.savings,
+    recurringExpenses: state.recurringExpenses,
     agenda: state.agenda,
     view: state.view,
     theme: state.theme,
@@ -514,8 +525,9 @@ function render() {
 
   const titles = {
     dashboard: { t: 'Dashboard & Indicadores', s: 'Visión general de finanzas, deudas, agenda y disciplina' },
-    finanzas: { t: 'Control Financiero Diario', s: 'Administra tus ingresos y gastos con precisión' },
+    gastosfijos: { t: 'Gastos Fijos & Meta de Ingresos', s: 'Controla luz, agua, gas, celulares y calcula los ingresos a conseguir' },
     deudas: { t: 'Deudas por Pagar & Cuotas', s: 'Distribuye en cuotas, registra pagos y descuenta de tus ingresos' },
+    finanzas: { t: 'Control Financiero Diario', s: 'Administra tus ingresos y gastos con precisión' },
     agenda: { t: 'Agenda Virtual & Hábitos', s: 'Organiza tu tiempo diario para forjar disciplina' },
     pomodoro: { t: 'Modo Enfoque (Pomodoro)', s: 'Bloques de alta concentración para productividad' },
     ahorros: { t: 'Metas de Ahorro & Alcancías', s: 'Fondo de emergencia y metas financieras a cumplir' },
@@ -547,6 +559,9 @@ function render() {
   switch (state.view) {
     case 'dashboard':
       renderDashboard(container);
+      break;
+    case 'gastosfijos':
+      renderGastosFijos(container);
       break;
     case 'finanzas':
       renderFinanzas(container);
@@ -593,13 +608,19 @@ function renderDashboard(container) {
   // Deudas Cálculos
   const debts = state.debts || [];
   let totalPendingDebt = 0;
+  let monthlyDebtCommitments = 0;
   let nextUrgentInstallment = null;
   let nextUrgentDebt = null;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
 
   debts.forEach(d => {
     (d.installments || []).forEach(inst => {
       if (inst.status === 'pending') {
         totalPendingDebt += inst.amount;
+        if (inst.dueDate.startsWith(currentMonth)) {
+          monthlyDebtCommitments += inst.amount;
+        }
         if (!nextUrgentInstallment || inst.dueDate < nextUrgentInstallment.dueDate) {
           nextUrgentInstallment = inst;
           nextUrgentDebt = d;
@@ -607,6 +628,15 @@ function renderDashboard(container) {
       }
     });
   });
+
+  // Gastos Fijos y Variables pendientes del mes
+  const recurring = state.recurringExpenses || [];
+  const monthlyRecurringPending = recurring.filter(r => !r.paidThisMonth).reduce((s, x) => s + x.amount, 0);
+  const totalCommitmentsToCover = monthlyDebtCommitments + monthlyRecurringPending;
+  const isCovered = totalInc >= totalCommitmentsToCover;
+  const incomeGap = Math.max(0, totalCommitmentsToCover - totalInc);
+  const incomeSurplus = Math.max(0, totalInc - totalCommitmentsToCover);
+  const coveragePct = totalCommitmentsToCover > 0 ? Math.min(100, Math.round((totalInc / totalCommitmentsToCover) * 100)) : 100;
 
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
@@ -651,67 +681,55 @@ function renderDashboard(container) {
       </div>
     </div>
 
-    <!-- Monthly Budget Meter Card -->
-    <div class="card-panel" style="margin-bottom:20px;padding:16px 20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-size:12.5px;font-weight:750;color:var(--text-muted)">Presupuesto Mensual</span>
-          <strong style="display:block;font-size:16px">${formatMoney(totalExp)} de ${formatMoney(budget)} gastados (${budgetPct}%)</strong>
+    <!-- 3 TARJETAS PRINCIPALES SOLICITADAS: 1. SALDO ACTUAL, 2. INGRESOS TOTALES, 3. DEUDAS TOTALES -->
+    <div class="top-kpi-trio">
+      <!-- 1. Saldo Actual -->
+      <div class="quad-card" style="border-left: 4px solid var(--primary);">
+        <div class="quad-card-head">
+          <span>1. 💰 Saldo Actual</span>
+          <div class="quad-card-icon" style="background:var(--primary-glow);color:var(--primary)">💼</div>
         </div>
-        <div style="text-align:right">
-          <span style="font-size:11px;color:var(--text-dim)">Disponible para gastar</span>
-          <strong style="display:block;font-size:15px;color:${(budget - totalExp) >= 0 ? 'var(--success)' : 'var(--danger)'}">
-            ${formatMoney(Math.max(0, budget - totalExp))}
-          </strong>
+        <div class="quad-card-value" style="color:${balance >= 0 ? 'var(--primary)' : 'var(--danger)'}">
+          ${formatMoney(balance)}
         </div>
+        <div class="quad-card-sub">Dinero neto disponible en mano</div>
+        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='finanzas';render()">
+          Ver Movimientos ➔
+        </button>
       </div>
-      <div class="budget-meter">
-        <div class="budget-meter-fill" style="width:${budgetPct}%;background:${budgetPct > 90 ? 'var(--danger)' : budgetPct > 70 ? 'var(--warning)' : 'linear-gradient(90deg, #10b981, #3b82f6)'}"></div>
+
+      <!-- 2. Ingresos Totales -->
+      <div class="quad-card" style="border-left: 4px solid var(--success);">
+        <div class="quad-card-head">
+          <span>2. 💵 Ingresos Totales</span>
+          <div class="quad-card-icon" style="background:var(--success-bg);color:var(--success)">↗️</div>
+        </div>
+        <div class="quad-card-value" style="color:var(--success)">${formatMoney(totalInc)}</div>
+        <div class="quad-card-sub">Entradas registradas del mes</div>
+        <button class="btn btn-sm btn-success" style="width:100%;margin-top:6px" onclick="openTxModal('income')">
+          ＋ Registrar Ingreso
+        </button>
+      </div>
+
+      <!-- 3. Deudas Totales -->
+      <div class="quad-card" style="border-left: 4px solid var(--danger);">
+        <div class="quad-card-head">
+          <span>3. 💳 Deudas Totales</span>
+          <div class="quad-card-icon" style="background:var(--danger-bg);color:var(--danger)">💳</div>
+        </div>
+        <div class="quad-card-value" style="color:var(--danger)">${formatMoney(totalPendingDebt)}</div>
+        <div class="quad-card-sub">
+          ${monthlyDebtCommitments > 0 ? `Cuotas por pagar este mes: <b>${formatMoney(monthlyDebtCommitments)}</b>` : 'Cuotas al día este mes'}
+        </div>
+        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='deudas';render()">
+          Ver Deudas & Cuotas ➔
+        </button>
       </div>
     </div>
 
-    <!-- Main KPIs -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span>Saldo Disponible</span>
-          <div class="kpi-icon" style="background:var(--primary-glow);color:var(--primary)">💰</div>
-        </div>
-        <div class="kpi-value ${balance >= 0 ? '' : 'text-danger'}">${formatMoney(balance)}</div>
-        <div class="kpi-sub">Ingresos: ${formatMoney(totalInc)} · Gastos: ${formatMoney(totalExp)}</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span>Deudas Pendientes</span>
-          <div class="kpi-icon" style="background:var(--danger-bg);color:var(--danger)">💳</div>
-        </div>
-        <div class="kpi-value" style="color:var(--danger)">${formatMoney(totalPendingDebt)}</div>
-        <div class="kpi-sub">${debts.length} compromisos registrados</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span>Índice de Disciplina</span>
-          <div class="kpi-icon" style="background:rgba(245, 158, 11, 0.15);color:var(--warning)">⚡</div>
-        </div>
-        <div class="kpi-value" style="color:var(--warning)">${score}%</div>
-        <div class="kpi-sub">${score >= 80 ? '🌟 Nivel Imparable' : score >= 60 ? '⚡ Nivel Constante' : '🌱 En desarrollo'}</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span>Agenda de Hoy</span>
-          <div class="kpi-icon" style="background:var(--success-bg);color:var(--success)">📅</div>
-        </div>
-        <div class="kpi-value">${doneTasks} / ${todayTasks.length}</div>
-        <div class="kpi-sub">${todayTasks.length ? Math.round((doneTasks / todayTasks.length) * 100) : 100}% completado</div>
-      </div>
-    </div>
-
-    <!-- Widget de Próxima Cuota de Deuda (Descuenta de Ingresos) -->
+    <!-- Recordatorio Directo de Próxima Cuota de Deuda (Si existe pendiente) -->
     ${nextUrgentInstallment ? `
-      <div class="card-panel" style="margin-bottom:20px;border-left:4px solid var(--primary)">
+      <div class="card-panel" style="margin-bottom:20px;border-left:4px solid var(--primary);padding:16px 20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
             <span class="status-badge status-pending">💳 Próxima Cuota por Pagar</span>
@@ -1444,6 +1462,135 @@ window.exportDebtsCsv = () => {
 };
 
 // -------------------------------------------------------------
+// GASTOS FIJOS, VARIABLES & META DE INGRESOS (NUEVO MÓDULO)
+// -------------------------------------------------------------
+function renderGastosFijos(container) {
+  const recurring = state.recurringExpenses || [];
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+
+  // Cuotas de deuda pendientes del mes
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  let monthlyDebtCommitments = 0;
+  (state.debts || []).forEach(d => {
+    (d.installments || []).forEach(i => {
+      if (i.status === 'pending' && i.dueDate.startsWith(currentMonth)) {
+        monthlyDebtCommitments += i.amount;
+      }
+    });
+  });
+
+  const totalFixedBudget = recurring.reduce((s, x) => s + x.amount, 0);
+  const pendingRecurring = recurring.filter(r => !r.paidThisMonth).reduce((s, x) => s + x.amount, 0);
+  const paidRecurring = totalFixedBudget - pendingRecurring;
+
+  // Compromisos presupuestados completos del mes (Deudas del mes + Total Gastos Fijos)
+  const totalBudgetedCommitments = monthlyDebtCommitments + totalFixedBudget;
+  // Margen / Ahorro planificado del mes: Ingresos - Total Compromisos
+  const budgetedMargin = totalInc - totalBudgetedCommitments;
+
+  // Compromisos que todavía faltan pagar en este momento
+  const totalPendingCommitments = monthlyDebtCommitments + pendingRecurring;
+  const isBudgetCovered = totalInc >= totalBudgetedCommitments;
+  const isLiquidityCovered = balance >= totalPendingCommitments;
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="font-size:20px;font-weight:800">Gastos Fijos, Deudas & Plan del Mes</h3>
+        <p style="color:var(--text-muted);font-size:13px">
+          Controla tus servicios básicos (luz, agua, gas, internet, celulares, etc.) y tus cuotas mensuales con total claridad.
+        </p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="openRecurringModal()">＋ Nuevo Gasto Fijo</button>
+        <button class="btn btn-soft" onclick="resetDemoTransactionsToMatchIncome()" title="Reinicia saldo a tu ingreso real para ir pagando recibos">
+          🔄 Sincronizar Saldo a ${formatMoney(totalInc)}
+        </button>
+        <button class="btn btn-soft" onclick="resetMonthlyRecurringExpenses()">🔄 Nuevo Ciclo Mensual</button>
+      </div>
+    </div>
+
+    <!-- 4 TARJETAS DEL PLAN: 100% CUADRADAS CON TUS INGRESOS -->
+    <div class="kpi-grid">
+      <!-- 1. Cuotas de Deuda este Mes -->
+      <div class="kpi-card" style="border-left: 3px solid var(--danger)">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">1. Cuotas de Deuda este Mes</span>
+        <div class="kpi-value" style="color:var(--danger)">${formatMoney(monthlyDebtCommitments)}</div>
+        <div class="kpi-sub">Préstamos y tarjetas a plazos</div>
+      </div>
+
+      <!-- 2. Gastos Fijos del Mes -->
+      <div class="kpi-card" style="border-left: 3px solid var(--warning)">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">2. Gastos Fijos del Mes</span>
+        <div class="kpi-value" style="color:var(--warning)">${formatMoney(totalFixedBudget)}</div>
+        <div class="kpi-sub">${recurring.length} servicios (${pendingRecurring > 0 ? `Faltan pagar: ${formatMoney(pendingRecurring)}` : '✓ Todos pagados'})</div>
+      </div>
+
+      <!-- 3. Compromisos Totales (1 + 2) -->
+      <div class="kpi-card" style="border-left: 3px solid var(--primary)">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">3. Total Compromisos (1 + 2)</span>
+        <div class="kpi-value" style="color:var(--primary)">${formatMoney(totalBudgetedCommitments)}</div>
+        <div class="kpi-sub">Deudas (${formatMoney(monthlyDebtCommitments)}) + Fijos (${formatMoney(totalFixedBudget)})</div>
+      </div>
+
+      <!-- 4. Margen / Ahorro Proyectado -->
+      <div class="kpi-card" style="border-left: 3px solid ${budgetedMargin >= 0 ? 'var(--success)' : 'var(--danger)'}">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">4. Margen Proyectado del Mes</span>
+        <div class="kpi-value" style="color:${budgetedMargin >= 0 ? 'var(--success)' : 'var(--danger)'}">
+          ${formatMoney(budgetedMargin)}
+        </div>
+        <div class="kpi-sub">Ingresos (${formatMoney(totalInc)}) menos Compromisos (${formatMoney(totalBudgetedCommitments)})</div>
+      </div>
+    </div>
+
+    <!-- Listado de Gastos Fijos y Variables Frecuentes -->
+    <div class="card-panel">
+      <div class="panel-head">
+        <h3>📋 Gastos Fijos y Variables Frecuentes (${recurring.length})</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Pulsa 'Pagar' para registrar el gasto y descontar de tus ingresos</span>
+      </div>
+
+      <div class="recurring-grid" style="margin-top:12px">
+        ${recurring.map(item => `
+          <div class="recurring-card ${item.paidThisMonth ? 'paid' : ''}">
+            <div class="recurring-head">
+              <div>
+                <h4>${item.title}</h4>
+                <small style="color:var(--text-muted)">${item.category} · ${item.type === 'fixed' ? 'Gasto Fijo' : 'Variable Frecuente'}</small>
+              </div>
+              <span class="status-badge ${item.paidThisMonth ? 'status-paid' : 'status-pending'}">
+                ${item.paidThisMonth ? '✓ Pagado' : '⏳ Pendiente'}
+              </span>
+            </div>
+
+            <div class="recurring-meta">
+              <span>Vence el <b>Día ${item.dueDay}</b></span>
+              <strong style="font-size:15px;color:var(--text-main)">${formatMoney(item.amount)}</strong>
+            </div>
+
+            ${item.paidThisMonth ? `
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+                <span style="font-size:12px;color:var(--success);font-weight:700">✓ Pagado el ${item.lastPaidDate || 'este mes'}</span>
+                <button class="btn btn-sm btn-soft" onclick="unmarkRecurringPaid('${item.id}')" title="Marcar pendiente">↩</button>
+              </div>
+            ` : `
+              <div style="display:flex;gap:8px;margin-top:6px">
+                <button class="btn btn-sm btn-success" style="flex:1" onclick="openPayRecurringModal('${item.id}')">
+                  💳 Pagar Gasto (Descontar de Ingresos)
+                </button>
+                <button class="btn btn-sm btn-soft" onclick="deleteRecurringExpense('${item.id}')" title="Eliminar">🗑️</button>
+              </div>
+            `}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------
 // 4. AGENDA VIRTUAL & HÁBITOS
 // -------------------------------------------------------------
 function renderAgenda(container) {
@@ -1456,7 +1603,7 @@ function renderAgenda(container) {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="openAgendaModal()">＋ Nueva Actividad</button>
-        <button class="btn btn-soft" onclick="setupGoogleIntegrations();$('#syncCalendarBtn').click()">📅 Enviar a Google Calendar</button>
+        <button class="btn btn-soft" onclick="openCalendarSyncModal()">📅 Enviar a Google Calendar</button>
       </div>
     </div>
 
@@ -1477,9 +1624,10 @@ function renderAgenda(container) {
                 <span>${item.date}</span>
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px">
               <input type="checkbox" style="width:22px;height:22px;cursor:pointer" ${item.done ? 'checked' : ''} onchange="toggleTaskDone('${item.id}')">
-              <button class="btn btn-sm btn-soft" onclick="deleteAgendaItem('${item.id}')">🗑️</button>
+              <button class="btn btn-sm btn-soft" onclick="openGoogleCalendarForTask('${item.id}')" title="Añadir a Google Calendar">📅</button>
+              <button class="btn btn-sm btn-soft" onclick="deleteAgendaItem('${item.id}')" title="Eliminar">🗑️</button>
             </div>
           </div>
         `).join('')}
@@ -1698,11 +1846,26 @@ window.saveSavingsGoal = (e) => {
 window.openSavingsContributeModal = (goalId) => {
   const goal = (state.savings || []).find(g => g.id === goalId);
   if (!goal) return;
+
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+
   $('#savContributeGoalId').value = goal.id;
-  $('#savContributeGoalTitle').value = `${goal.title} (Faltan: ${formatMoney(goal.targetAmount - goal.currentAmount)})`;
+  $('#savContributeGoalTitle').textContent = `${goal.title} (Faltan: ${formatMoney(goal.targetAmount - goal.currentAmount)})`;
+  $('#savUserBalanceBefore').textContent = formatMoney(balance);
   $('#savContributeAmount').value = '100.00';
+  $('#savUserBalanceAfter').textContent = formatMoney(balance - 100);
   $('#savContributeDate').value = new Date().toISOString().slice(0, 10);
   $('#savingsContributeModal').classList.remove('hidden');
+};
+
+window.updateSavBalancePreview = () => {
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+  const amt = parseFloat($('#savContributeAmount')?.value) || 0;
+  $('#savUserBalanceAfter').textContent = formatMoney(balance - amt);
 };
 
 window.executeSavingsContribute = (e) => {
@@ -1710,31 +1873,29 @@ window.executeSavingsContribute = (e) => {
   const goalId = $('#savContributeGoalId').value;
   const amount = parseFloat($('#savContributeAmount').value) || 0;
   const date = $('#savContributeDate').value || new Date().toISOString().slice(0, 10);
-  const recordExp = $('#savRecordExpense').checked;
 
   const goal = (state.savings || []).find(g => g.id === goalId);
   if (!goal) return;
 
   goal.currentAmount += amount;
 
-  if (recordExp) {
-    const tx = {
-      id: 'tx-sav-' + Date.now(),
-      type: 'expense',
-      title: `Aporte a Ahorro: ${goal.title}`,
-      amount: amount,
-      category: 'Ahorro / Inversión',
-      date: date,
-      method: 'Transferencia',
-      notes: `Alcancía ${goal.title}`
-    };
-    state.transactions.unshift(tx);
-  }
+  // Registrar SIEMPRE como Gasto para descontar inmediatamente de ingresos y saldo
+  const tx = {
+    id: 'tx-sav-' + Date.now(),
+    type: 'expense',
+    title: `Aporte a Ahorro: ${goal.title}`,
+    amount: amount,
+    category: 'Ahorro / Inversión',
+    date: date,
+    method: 'Aporte de Saldo',
+    notes: `Reserva para meta: ${goal.title} (Saldo acumulado: S/ ${goal.currentAmount.toFixed(2)})`
+  };
+  state.transactions.unshift(tx);
 
   saveState();
   closeModal('savingsContributeModal');
   playChime('success');
-  toast(`Aporte de ${formatMoney(amount)} registrado a ${goal.title}`, '🎯');
+  toast(`¡Aporte de ${formatMoney(amount)} registrado! Se descontó de tus ingresos y saldo disponible.`, '💰');
   render();
 };
 
@@ -1745,6 +1906,347 @@ window.deleteSavingsGoal = (id) => {
     toast('Meta de ahorro eliminada', '🗑️');
     render();
   }
+};
+
+// -------------------------------------------------------------
+// CONTROLADORES DE GASTOS FIJOS Y VARIABLES
+// -------------------------------------------------------------
+window.openRecurringModal = (id = null) => {
+  $('#recurringForm').reset();
+  $('#recEditId').value = '';
+  $('#recurringModalTitle').textContent = 'Nuevo Gasto Fijo o Frecuente';
+  if (id) {
+    const item = (state.recurringExpenses || []).find(r => r.id === id);
+    if (item) {
+      $('#recEditId').value = item.id;
+      $('#recTitle').value = item.title;
+      $('#recCategory').value = item.category;
+      $('#recAmount').value = item.amount;
+      $('#recDueDay').value = item.dueDay;
+      $('#recType').value = item.type;
+      $('#recNotes').value = item.notes || '';
+      $('#recurringModalTitle').textContent = 'Editar Gasto Fijo';
+    }
+  }
+  $('#recurringModal').classList.remove('hidden');
+};
+
+window.saveRecurringExpense = (e) => {
+  e.preventDefault();
+  const id = $('#recEditId').value;
+  const title = $('#recTitle').value.trim();
+  const category = $('#recCategory').value;
+  const amount = parseFloat($('#recAmount').value) || 0;
+  const dueDay = parseInt($('#recDueDay').value, 10) || 15;
+  const type = $('#recType').value;
+  const notes = $('#recNotes').value.trim();
+
+  if (!state.recurringExpenses) state.recurringExpenses = [];
+
+  if (id) {
+    const item = state.recurringExpenses.find(r => r.id === id);
+    if (item) {
+      item.title = title;
+      item.category = category;
+      item.amount = amount;
+      item.dueDay = dueDay;
+      item.type = type;
+      item.notes = notes;
+    }
+  } else {
+    state.recurringExpenses.push({
+      id: 'rec-' + Date.now(),
+      title,
+      category,
+      amount,
+      dueDay,
+      type,
+      notes,
+      paidThisMonth: false,
+      lastPaidDate: null
+    });
+  }
+
+  saveState();
+  closeModal('recurringModal');
+  playChime('success');
+  toast(`Gasto '${title}' guardado correctamente`, '📋');
+  render();
+};
+
+window.deleteRecurringExpense = (id) => {
+  const item = (state.recurringExpenses || []).find(r => r.id === id);
+  if (!item) return;
+  if (confirm(`¿Eliminar el gasto frecuente '${item.title}'?`)) {
+    state.recurringExpenses = state.recurringExpenses.filter(r => r.id !== id);
+    saveState();
+    toast('Gasto frecuente eliminado', '🗑️');
+    render();
+  }
+};
+
+window.openPayRecurringModal = (id) => {
+  const item = (state.recurringExpenses || []).find(r => r.id === id);
+  if (!item) return;
+
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+
+  $('#payRecId').value = item.id;
+  $('#payRecTitleDisplay').textContent = `${item.title} (${item.category})`;
+  $('#payRecUserBalanceDisplay').textContent = formatMoney(balance);
+  $('#payRecAmount').value = item.amount.toFixed(2);
+  $('#payRecDate').value = new Date().toISOString().slice(0, 10);
+  $('#payRecurringModal').classList.remove('hidden');
+};
+
+window.executeRecurringPayment = (e) => {
+  e.preventDefault();
+  const id = $('#payRecId').value;
+  const amount = parseFloat($('#payRecAmount').value) || 0;
+  const date = $('#payRecDate').value || new Date().toISOString().slice(0, 10);
+  const method = $('#payRecMethod').value;
+
+  const item = (state.recurringExpenses || []).find(r => r.id === id);
+  if (!item) return;
+
+  item.paidThisMonth = true;
+  item.lastPaidDate = date;
+
+  // Registrar GASTO en Finanzas Diarias (descuenta automáticamente de ingresos y saldo)
+  const tx = {
+    id: 'tx-rec-' + Date.now(),
+    type: 'expense',
+    title: `Pago: ${item.title}`,
+    amount: amount,
+    category: item.category,
+    date: date,
+    method: method,
+    notes: `Gasto frecuente del mes · ${item.title}`
+  };
+  state.transactions.unshift(tx);
+
+  saveState();
+  closeModal('payRecurringModal');
+  playChime('success');
+  toast(`¡${item.title} pagado con éxito (${formatMoney(amount)})! Descontado de tus ingresos y saldo.`, '💳');
+  render();
+};
+
+window.unmarkRecurringPaid = (id) => {
+  const item = (state.recurringExpenses || []).find(r => r.id === id);
+  if (!item) return;
+  item.paidThisMonth = false;
+  saveState();
+  toast(`Gasto '${item.title}' marcado como pendiente`, '↩️');
+  render();
+};
+
+window.resetMonthlyRecurringExpenses = () => {
+  if (confirm('¿Iniciar un nuevo ciclo mensual? Todos los gastos fijos volverán a estar pendientes para el nuevo mes.')) {
+    (state.recurringExpenses || []).forEach(r => {
+      r.paidThisMonth = false;
+    });
+    saveState();
+    playChime('success');
+    toast('Nuevo ciclo mensual iniciado. Gastos fijos listos para controlarse.', '🔄');
+    render();
+  }
+};
+
+// -------------------------------------------------------------
+// CONTROLADOR DE CUADRE FINANCIERO Y CONCILIACIÓN
+// -------------------------------------------------------------
+window.openCuadreModal = () => {
+  const modal = $('#cuadreModal');
+  const content = $('#cuadreModalContent');
+  if (!modal || !content) return;
+
+  const recurring = state.recurringExpenses || [];
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  let monthlyDebtCommitments = 0;
+  (state.debts || []).forEach(d => {
+    (d.installments || []).forEach(i => {
+      if (i.status === 'pending' && i.dueDate.startsWith(currentMonth)) {
+        monthlyDebtCommitments += i.amount;
+      }
+    });
+  });
+
+  const totalFixedBudget = recurring.reduce((s, x) => s + x.amount, 0);
+  const totalBudgetedCommitments = monthlyDebtCommitments + totalFixedBudget;
+  const budgetedMargin = totalInc - totalBudgetedCommitments;
+  const expenseList = state.transactions.filter(t => t.type === 'expense');
+
+  content.innerHTML = `
+    <!-- Bloque 1: El Cuadre Matemático del Mes -->
+    <div style="background:var(--bg-secondary);padding:14px 16px;border-radius:12px;margin-bottom:14px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:18px">📐</span>
+        <strong style="font-size:14px;color:var(--text-main)">1. Tu Presupuesto del Mes (Matemáticamente Exacto)</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+        <span style="color:var(--text-muted)">(＋) Ingresos Totales del Mes:</span>
+        <b style="color:var(--success)">${formatMoney(totalInc)}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+        <span style="color:var(--text-muted)">(－) Cuotas de Deuda del Mes:</span>
+        <b style="color:var(--danger)">${formatMoney(monthlyDebtCommitments)}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+        <span style="color:var(--text-muted)">(－) Gastos Fijos del Mes (${recurring.length} cuentas):</span>
+        <b style="color:var(--warning)">${formatMoney(totalFixedBudget)}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0 0;border-top:1px solid var(--border);margin-top:6px">
+        <span style="font-weight:750">(=) Margen / Ahorro Libre Proyectado:</span>
+        <b style="color:${budgetedMargin >= 0 ? 'var(--primary)' : 'var(--danger)'};font-size:16px">${formatMoney(budgetedMargin)}</b>
+      </div>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:8px 0 0;line-height:1.4">
+        ✓ <b>Tus cuentas cuadran:</b> ${formatMoney(totalInc)} de ingresos menos ${formatMoney(totalBudgetedCommitments)} de compromisos deja un superávit de <b>${formatMoney(budgetedMargin)}</b>.
+      </p>
+    </div>
+
+    <!-- Bloque 2: Por qué tu Saldo en Mano dice X -->
+    <div style="background:var(--bg-secondary);padding:14px 16px;border-radius:12px;margin-bottom:14px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:18px">💰</span>
+        <strong style="font-size:14px;color:var(--text-main)">2. ¿Por qué tu Saldo Disponible en Mano dice ${formatMoney(balance)}?</strong>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.4">
+        Porque en tu historial de transacciones ya figuran <b>${formatMoney(totalExp)}</b> en gastos registrados (como compras de prueba, aportes o recibos previos):
+      </p>
+      <div style="max-height:130px;overflow-y:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px">
+        ${expenseList.length ? expenseList.map(t => `
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">${t.title} <small style="color:var(--text-muted)">(${t.category})</small></span>
+            <b style="color:var(--danger)">-${formatMoney(t.amount)}</b>
+          </div>
+        `).join('') : '<p style="color:var(--text-muted);font-size:12px;margin:0">Sin gastos previos registrados.</p>'}
+      </div>
+    </div>
+
+    <!-- Bloque 3: Solución de 1 Clic -->
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);padding:14px;border-radius:12px">
+      <strong style="color:var(--warning);font-size:13.5px;display:block;margin-bottom:4px">
+        🔄 ¿Eran gastos de prueba? Sincroniza tu saldo a la realidad:
+      </strong>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.4">
+        Si esos ${formatMoney(totalExp)} eran datos de prueba y en tu cuenta real tienes tus <b>${formatMoney(totalInc)}</b> completos para ir pagando tus 7 gastos fijos uno a uno:
+      </p>
+      <button class="btn btn-warning" style="width:100%" onclick="resetDemoTransactionsToMatchIncome()">
+        🔄 Limpiar Gastos de Prueba y Reiniciar Saldo a ${formatMoney(totalInc)}
+      </button>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+};
+
+window.resetDemoTransactionsToMatchIncome = () => {
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0) || 2550;
+  if (confirm(`¿Reiniciar tu saldo a ${formatMoney(totalInc)}? Se eliminarán los gastos anteriores de prueba para que tu saldo disponible empiece en ${formatMoney(totalInc)} y puedas ir pagando tus 7 gastos fijos uno por uno de forma exacta.`)) {
+    // Mantener únicamente el ingreso
+    state.transactions = [
+      { id: 'tx-ingreso-base', type: 'income', title: 'Ingreso Principal del Mes', amount: totalInc, category: 'Sueldo / Ingresos', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Presupuesto mensual para gastos y compromisos' }
+    ];
+    // Restablecer los gastos fijos a pendientes para que el usuario los pague con el botón
+    (state.recurringExpenses || []).forEach(r => {
+      r.paidThisMonth = false;
+      r.lastPaidDate = null;
+    });
+    saveState();
+    closeModal('cuadreModal');
+    playChime('success');
+    toast(`¡Saldo sincronizado a ${formatMoney(totalInc)}! Ahora cada gasto fijo que pagues se descontará de forma exacta.`, '✅');
+    render();
+  }
+};
+
+// -------------------------------------------------------------
+// CONTROLADORES DE GOOGLE CALENDAR
+// -------------------------------------------------------------
+window.openCalendarSyncModal = () => {
+  $('#calendarSyncModal').classList.remove('hidden');
+};
+
+window.openTodayInGoogleCalendar = () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayTasks = (state.agenda || []).filter(a => a.date === today && !a.done);
+  const task = todayTasks[0] || (state.agenda || [])[0];
+  if (!task) {
+    toast('No hay actividades pendientes en tu agenda para hoy', 'ℹ️');
+    return;
+  }
+  openGoogleCalendarForTask(task.id);
+  closeModal('calendarSyncModal');
+};
+
+window.openGoogleCalendarForTask = (taskId) => {
+  const task = (state.agenda || []).find(a => a.id === taskId);
+  if (!task) return;
+  const dateFormatted = task.date.replace(/-/g, '');
+  const timeFormatted = (task.time || '09:00').replace(/:/g, '') + '00';
+  const startIso = `${dateFormatted}T${timeFormatted}`;
+
+  const dateObj = new Date(`${task.date}T${task.time || '09:00'}:00`);
+  const endDateObj = new Date(dateObj.getTime() + 45 * 60000);
+  const endDateFormatted = endDateObj.toISOString().slice(0, 10).replace(/-/g, '');
+  const endTimeFormatted = endDateObj.toTimeString().slice(0, 5).replace(/:/g, '') + '00';
+  const endIso = `${endDateFormatted}T${endTimeFormatted}`;
+
+  const title = encodeURIComponent(`[Gestión Personal] ${task.title}`);
+  const details = encodeURIComponent(`Prioridad: ${task.priority}\nTipo: ${task.type}\nCuenta: tualiadoenusaforms@gmail.com\nOrganizado con Gestión Personal.`);
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startIso}/${endIso}&details=${details}&add=tualiadoenusaforms@gmail.com`;
+
+  window.open(url, '_blank');
+  toast('Abriendo Google Calendar con tu actividad...', '📅');
+};
+
+window.downloadAgendaIcsFile = () => {
+  const tasks = state.agenda || [];
+  if (!tasks.length) {
+    toast('No hay actividades en la agenda para exportar', 'ℹ️');
+    return;
+  }
+  let ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Gestion Personal//Agenda//ES',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH'
+  ];
+  tasks.forEach(task => {
+    const d = (task.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+    const t = (task.time || '09:00').replace(/:/g, '') + '00';
+    ics.push('BEGIN:VEVENT');
+    ics.push(`UID:task-${task.id}@gestionpersonal.app`);
+    ics.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`);
+    ics.push(`DTSTART:${d}T${t}`);
+    ics.push(`DTEND:${d}T${t}`);
+    ics.push(`SUMMARY:[Disciplina] ${task.title}`);
+    ics.push(`DESCRIPTION:Prioridad ${task.priority}. Tipo: ${task.type}`);
+    ics.push('BEGIN:VALARM');
+    ics.push('TRIGGER:-PT15M');
+    ics.push('ACTION:DISPLAY');
+    ics.push(`DESCRIPTION:Recordatorio: ${task.title}`);
+    ics.push('END:VALARM');
+    ics.push('END:VEVENT');
+  });
+  ics.push('END:VCALENDAR');
+
+  const blob = new Blob([ics.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `agenda_personal_${new Date().toISOString().slice(0, 10)}.ics`;
+  a.click();
+  closeModal('calendarSyncModal');
+  toast('Calendario descargado (.ICS). Tu celular abrirá Google Calendar para importarlo.', '📲');
 };
 
 // -------------------------------------------------------------

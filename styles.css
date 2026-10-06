@@ -393,6 +393,8 @@ button { cursor: pointer; border: none; background: transparent; }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-success { background: var(--success); color: white; }
 .btn-danger { background: var(--danger); color: white; }
+.btn-warning { background: var(--warning); color: #111; font-weight: 800; }
+.btn-warning:hover { filter: brightness(1.1); }
 .btn-soft { background: var(--bg-card-hover); border: 1px solid var(--border); color: var(--text-main); }
 .btn-soft:hover { background: rgba(255, 255, 255, 0.12); }
 .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
@@ -929,3 +931,323 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   font-size: 15px;
   color: var(--primary);
 }
+
+/* Tarjetas Principales Solicitadas: 1. Saldo Actual, 2. Ingresos Totales, 3. Deudas Totales */
+.top-kpi-trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+@media (max-width: 680px) {
+  .top-kpi-trio {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+.quad-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.quad-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.quad-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quad-card-head span {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: 0.2px;
+}
+.quad-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+.quad-card-value {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  margin: 4px 0 2px;
+}
+.quad-card-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Gastos Fijos y Variables */
+.recurring-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 14px;
+}
+.recurring-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.recurring-card.paid {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.03);
+}
+.recurring-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.recurring-head h4 {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0;
+}
+.recurring-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-secondary);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+.gap-card {
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(245, 158, 11, 0.1));
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  margin-bottom: 20px;
+}
+.gap-card.covered {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(59, 130, 246, 0.1));
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* Diagnóstico Financiero y Desglose de Compromisos */
+.commitment-diag-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+.commitment-diag-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.commitment-formula-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.formula-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.formula-item small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 750;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.formula-item strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+}
+.formula-item span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.clarification-note {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.clarification-note strong {
+  color: var(--text-main);
+}
+
+/* Trio Cards: Saldo Actual, Ingresos Totales, Deudas Totales */
+.top-kpi-trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* Tarjeta Práctica Maestra de Finanzas */
+.practical-finance-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+.practical-status-box {
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.practical-status-box.deficit {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(185, 28, 28, 0.15));
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.practical-status-box.surplus {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.15));
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.practical-status-title {
+  font-size: 13px;
+  font-weight: 750;
+  margin-bottom: 4px;
+}
+.practical-status-box.deficit .practical-status-title { color: #f87171; }
+.practical-status-box.surplus .practical-status-title { color: #34d399; }
+
+.practical-status-amount {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.practical-status-box.deficit .practical-status-amount { color: #fca5a5; }
+.practical-status-box.surplus .practical-status-amount { color: #6ee7b7; }
+
+.practical-vs-grid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.practical-vs-box {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.practical-vs-box small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.practical-vs-box strong {
+  font-size: 18px;
+  font-weight: 850;
+}
+.practical-vs-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-dim);
+  padding: 0 4px;
+}
+
+.practical-progress-wrap {
+  margin-bottom: 14px;
+}
+.practical-progress-bar {
+  background: rgba(255, 255, 255, 0.08);
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.practical-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #10b981);
+  transition: width 0.4s ease;
+}
+.practical-progress-text {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  display: block;
+}
+
+.practical-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.practical-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+}
+.practical-metric-row span {
+  color: var(--text-muted);
+}
+.practical-metric-row b {
+  font-weight: 800;
+}
+
+.practical-next-installment-pill {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.practical-next-installment-pill:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+

@@ -37,11 +37,14 @@
       <button class="nav-btn active" data-nav="dashboard">
         <i>📊</i> <span>Dashboard</span>
       </button>
-      <button class="nav-btn" data-nav="finanzas">
-        <i>💰</i> <span>Finanzas Diarias</span>
+      <button class="nav-btn" data-nav="gastosfijos">
+        <i>📋</i> <span>Gastos Fijos & Meta</span>
       </button>
       <button class="nav-btn" data-nav="deudas">
         <i>💳</i> <span>Deudas & Cuotas</span>
+      </button>
+      <button class="nav-btn" data-nav="finanzas">
+        <i>💰</i> <span>Finanzas Diarias</span>
       </button>
       <button class="nav-btn" data-nav="agenda">
         <i>📅</i> <span>Agenda & Hábitos</span>
@@ -105,20 +108,20 @@
   <button class="bnav-btn active" data-nav="dashboard">
     <i>📊</i><span>Inicio</span>
   </button>
-  <button class="bnav-btn" data-nav="finanzas">
-    <i>💰</i><span>Dinero</span>
+  <button class="bnav-btn" data-nav="gastosfijos">
+    <i>📋</i><span>Fijos</span>
   </button>
   <button class="bnav-btn" data-nav="deudas">
     <i>💳</i><span>Deudas</span>
   </button>
+  <button class="bnav-btn" data-nav="finanzas">
+    <i>💰</i><span>Dinero</span>
+  </button>
   <button class="bnav-btn" data-nav="agenda">
     <i>📅</i><span>Agenda</span>
   </button>
-  <button class="bnav-btn" data-nav="pomodoro">
-    <i>⏱️</i><span>Enfoque</span>
-  </button>
-  <button class="bnav-btn" data-nav="indicadores">
-    <i>📈</i><span>Métricas</span>
+  <button class="bnav-btn" data-nav="ahorros">
+    <i>🎯</i><span>Ahorros</span>
   </button>
 </nav>
 
@@ -542,38 +545,226 @@
       <h3>🎯 Aportar a Meta de Ahorro</h3>
       <button class="close-btn" onclick="closeModal('savingsContributeModal')">✕</button>
     </div>
+    
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text-muted)">Meta:</span>
+        <strong id="savContributeGoalTitle" style="color:var(--text-main);font-size:13.5px">-</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text-muted)">Tu Saldo Disponible actual:</span>
+        <strong id="savUserBalanceBefore" style="color:var(--success);font-size:13.5px">-</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:12px;color:var(--text-dim)">Saldo tras el aporte:</span>
+        <strong id="savUserBalanceAfter" style="color:var(--primary);font-size:13px">-</strong>
+      </div>
+    </div>
+
     <form class="form-grid" onsubmit="executeSavingsContribute(event)">
       <input type="hidden" id="savContributeGoalId" value="">
-      <div class="form-group">
-        <label>Meta Seleccionada</label>
-        <input type="text" id="savContributeGoalTitle" readonly style="opacity:0.8">
-      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label>Monto a Aportar (S/)</label>
-          <input type="number" id="savContributeAmount" required step="0.01" min="0.01">
+          <input type="number" id="savContributeAmount" required step="0.01" min="0.01" oninput="updateSavBalancePreview()">
         </div>
         <div class="form-group">
           <label>Fecha</label>
           <input type="date" id="savContributeDate" required>
         </div>
       </div>
-      <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:12px">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:12.5px;font-weight:700">
-          <input type="checkbox" id="savRecordExpense" checked style="width:18px;height:18px;margin-top:2px;accent-color:var(--success)">
-          <span>
-            <b>Registrar movimiento en Finanzas (Ahorro / Inversión)</b><br>
-            <span style="font-size:11.5px;color:var(--text-muted);font-weight:normal">
-              Descuenta el monto del saldo disponible y lo asigna a tu alcancía.
+
+      <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-main)">
+          <span style="font-size:16px">💸</span>
+          <div>
+            <b>Descuento Automático de tus Ingresos y Saldo</b><br>
+            <span style="color:var(--text-muted);font-size:11.5px">
+              Este aporte saldrá automáticamente de tus ingresos disponibles y se registrará en tus movimientos como reserva de ahorro.
             </span>
-          </span>
-        </label>
+          </div>
+        </div>
       </div>
+
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
         <button type="button" class="btn btn-soft" onclick="closeModal('savingsContributeModal')">Cancelar</button>
-        <button type="submit" class="btn btn-success">Confirmar Aporte</button>
+        <button type="submit" class="btn btn-success">✓ Confirmar y Descontar de Ingresos</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal: Crear / Editar Gasto Fijo o Frecuente -->
+<div class="overlay hidden" id="recurringModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="recurringModalTitle">Nuevo Gasto Fijo o Frecuente</h3>
+      <button class="close-btn" onclick="closeModal('recurringModal')">✕</button>
+    </div>
+    <p style="color:var(--text-muted);font-size:12.5px;margin-bottom:14px">
+      Registra tus gastos frecuentes (luz, agua, gas, celulares, internet, préstamo a papá, etc.) para calcular la meta de ingresos a conseguir.
+    </p>
+    <form class="form-grid" id="recurringForm" onsubmit="saveRecurringExpense(event)">
+      <input type="hidden" id="recEditId" value="">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Concepto del Gasto</label>
+          <input type="text" id="recTitle" required placeholder="Ej: Luz, Agua, Gas, Celulares, Internet, Préstamo a papá" maxlength="70">
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <select id="recCategory">
+            <option>Servicios Básicos (Luz, Agua, Gas)</option>
+            <option>Telecomunicaciones (Celular, Internet)</option>
+            <option>Préstamo Familiar / Personal</option>
+            <option>Vivienda / Alquiler</option>
+            <option>Alimentación Fija</option>
+            <option>Salud / Seguros</option>
+            <option>Educación</option>
+            <option>Transporte / Gasolina</option>
+            <option>Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Monto Estimado / Presupuestado (S/)</label>
+          <input type="number" id="recAmount" required step="0.01" min="1" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Día de Pago / Vencimiento (1 al 31)</label>
+          <input type="number" id="recDueDay" required min="1" max="31" value="15" placeholder="Día del mes">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Tipo de Gasto</label>
+        <select id="recType">
+          <option value="fixed">📌 Gasto Fijo Obligatorio (No varía o es esencial)</option>
+          <option value="variable">⚡ Gasto Variable Frecuente (Monto aproximado)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Notas / Proveedor</label>
+        <input type="text" id="recNotes" placeholder="Ej: Código de suministro, nombre de empresa o recordatorio">
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
+        <button type="button" class="btn btn-soft" onclick="closeModal('recurringModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Gasto Fijo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Pagar Gasto Fijo (Descuento Inmediato de Ingresos) -->
+<div class="overlay hidden" id="payRecurringModal">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-head">
+      <h3>💳 Pagar Gasto Fijo del Mes</h3>
+      <button class="close-btn" onclick="closeModal('payRecurringModal')">✕</button>
+    </div>
+    
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text-muted)">Gasto:</span>
+        <strong id="payRecTitleDisplay" style="color:var(--text-main);font-size:14px">-</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text-muted)">Saldo Disponible Actual:</span>
+        <strong id="payRecUserBalanceDisplay" style="color:var(--success);font-size:13.5px">-</strong>
+      </div>
+    </div>
+
+    <form class="form-grid" onsubmit="executeRecurringPayment(event)">
+      <input type="hidden" id="payRecId" value="">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Monto Real a Pagar (S/)</label>
+          <input type="number" id="payRecAmount" required step="0.01" min="0.01">
+        </div>
+        <div class="form-group">
+          <label>Fecha de Pago</label>
+          <input type="date" id="payRecDate" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Método de Pago</label>
+        <select id="payRecMethod">
+          <option>Yape / Plin</option>
+          <option>Transferencia Bancaria</option>
+          <option>Tarjeta Débito</option>
+          <option>Efectivo</option>
+        </select>
+      </div>
+
+      <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px">
+        <span style="font-size:12px;color:var(--text-main)">
+          ✓ Se marcará como <b>Pagado este mes</b> y se creará un gasto en tus finanzas, <b>descontando directamente de tus ingresos y saldo disponible</b>.
+        </span>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
+        <button type="button" class="btn btn-soft" onclick="closeModal('payRecurringModal')">Cancelar</button>
+        <button type="submit" class="btn btn-success">✓ Confirmar Pago</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Sincronización con Google Calendar -->
+<div class="overlay hidden" id="calendarSyncModal">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-head">
+      <h3>📅 Sincronizar con Google Calendar</h3>
+      <button class="close-btn" onclick="closeModal('calendarSyncModal')">✕</button>
+    </div>
+    
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+      Sincroniza tus actividades y recordatorios con tu Google Calendar en <b>tualiadoenusaforms@gmail.com</b> para recibir notificaciones en tu celular aunque la web esté inactiva:
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+      <!-- Opción 1: Abrir evento de hoy directamente en Google Calendar -->
+      <button class="btn btn-primary" onclick="openTodayInGoogleCalendar()" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px">
+        <span>🌐</span> <span>Abrir y Guardar en Google Calendar (Web/App)</span>
+      </button>
+
+      <!-- Opción 2: Descargar archivo .ICS (Importación nativa al celular con alarmas) -->
+      <button class="btn btn-success" onclick="downloadAgendaIcsFile()" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px">
+        <span>📲</span> <span>Descargar Calendario Móvil (.ICS con alarmas)</span>
+      </button>
+
+      <!-- Opción 3: Ir a configuración de Google & Scripts -->
+      <button class="btn btn-soft" onclick="closeModal('calendarSyncModal');state.view='google';render();">
+        <span>☁️</span> <span>Configuración y Cuenta Google (tualiadoenusaforms@gmail.com)</span>
+      </button>
+    </div>
+
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:12px;color:var(--text-muted)">
+      💡 <b>Tip móvil:</b> Al pulsar <i>Descargar Calendario Móvil (.ICS)</i>, tu celular Android abrirá Google Calendar automáticamente para importar todas tus tareas y recordatorios con 1 solo toque.
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Cuadre Financiero y Ajuste de Cuentas -->
+<div class="overlay hidden" id="cuadreModal">
+  <div class="modal-box" style="max-width:540px">
+    <div class="modal-head">
+      <h3>⚖️ Cuadre Financiero del Mes</h3>
+      <button class="close-btn" onclick="closeModal('cuadreModal')">✕</button>
+    </div>
+    
+    <div id="cuadreModalContent" style="margin-bottom:16px">
+      <!-- Inyectado dinámicamente -->
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button type="button" class="btn btn-soft" onclick="closeModal('cuadreModal')">Cerrar</button>
+    </div>
   </div>
 </div>
 
