@@ -1,6 +1,6 @@
 /**
  * Gestión Personal - Finanzas, Deudas, Agenda & Disciplina
- * Versión 6.2.0
+ * Versión 6.3.0 (dashboards con datos reales)
  */
 
 // Global State Keys
@@ -25,10 +25,10 @@ let state = {
   },
   googleEmail: 'tualiadoenusaforms@gmail.com',
   transactions: [
-    { id: 'tx-1', type: 'income', title: 'Ingreso Principal', amount: 2500, category: 'Sueldo', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Mensualidad' },
-    { id: 'tx-2', type: 'expense', title: 'Alimentación Semanal', amount: 240, category: 'Alimentación', date: new Date().toISOString().slice(0, 10), method: 'Yape / Plin', notes: 'Supermercado' },
-    { id: 'tx-3', type: 'expense', title: 'Servicio de Internet y Luz', amount: 165, category: 'Servicios', date: new Date().toISOString().slice(0, 10), method: 'Tarjeta', notes: 'Servicios básicos' },
-    { id: 'tx-4', type: 'expense', title: 'Pago Cuota 2/6 · Tarjeta de Crédito BCP', amount: 300, category: 'Pago de Deuda / Cuotas', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Amortización cuota mensual' }
+    { id: 'tx-1', type: 'income', title: 'Ingreso Principal', amount: 2500, category: 'Sueldo', date: todayStr(), method: 'Transferencia', notes: 'Mensualidad' },
+    { id: 'tx-2', type: 'expense', title: 'Alimentación Semanal', amount: 240, category: 'Alimentación', date: todayStr(), method: 'Yape / Plin', notes: 'Supermercado' },
+    { id: 'tx-3', type: 'expense', title: 'Servicio de Internet y Luz', amount: 165, category: 'Servicios', date: todayStr(), method: 'Tarjeta', notes: 'Servicios básicos' },
+    { id: 'tx-4', type: 'expense', title: 'Pago Cuota 2/6 · Tarjeta de Crédito BCP', amount: 300, category: 'Pago de Deuda / Cuotas', date: todayStr(), method: 'Transferencia', notes: 'Amortización cuota mensual' }
   ],
   debts: [
     {
@@ -85,9 +85,9 @@ let state = {
     { id: 'sav-2', title: 'Nueva Computadora / Herramientas', targetAmount: 2200, currentAmount: 850, targetDate: '2027-02-28', category: 'Inversión / Negocio' }
   ],
   agenda: [
-    { id: 'ag-1', title: 'Planificación matutina y lectura (20 min)', time: '07:00', priority: 'high', type: 'habit', done: true, date: new Date().toISOString().slice(0, 10) },
-    { id: 'ag-2', title: 'Revisión y registro de finanzas del día', time: '13:00', priority: 'high', type: 'task', done: false, date: new Date().toISOString().slice(0, 10) },
-    { id: 'ag-3', title: 'Cierre de objetivos y preparación de agenda mañana', time: '21:00', priority: 'mid', type: 'habit', done: false, date: new Date().toISOString().slice(0, 10) }
+    { id: 'ag-1', title: 'Planificación matutina y lectura (20 min)', time: '07:00', priority: 'high', type: 'habit', done: true, date: todayStr() },
+    { id: 'ag-2', title: 'Revisión y registro de finanzas del día', time: '13:00', priority: 'high', type: 'task', done: false, date: todayStr() },
+    { id: 'ag-3', title: 'Cierre de objetivos y preparación de agenda mañana', time: '21:00', priority: 'mid', type: 'habit', done: false, date: todayStr() }
   ],
   pomodoro: {
     mode: 'work',
@@ -102,7 +102,7 @@ let state = {
     { id: 'rec-2', title: 'Agua potable', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 45.00, dueDay: 20, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
     { id: 'rec-3', title: 'Gas natural / balón', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 65.00, dueDay: 15, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
     { id: 'rec-4', title: 'Planes Celulares', category: 'Telecomunicaciones (Celular, Internet)', amount: 70.00, dueDay: 12, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-5', title: 'Internet Fibra Óptica', category: 'Telecomunicaciones (Celular, Internet)', amount: 110.00, dueDay: 10, type: 'fixed', paidThisMonth: true, lastPaidDate: new Date().toISOString().slice(0, 10) },
+    { id: 'rec-5', title: 'Internet Fibra Óptica', category: 'Telecomunicaciones (Celular, Internet)', amount: 110.00, dueDay: 10, type: 'fixed', paidThisMonth: true, lastPaidDate: todayStr() },
     { id: 'rec-6', title: 'Préstamo a papá', category: 'Préstamo Familiar / Personal', amount: 200.00, dueDay: 25, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
     { id: 'rec-7', title: 'Alimentación Fija / Mercado', category: 'Alimentación Fija', amount: 600.00, dueDay: 30, type: 'variable', paidThisMonth: false, lastPaidDate: null }
   ],
@@ -153,6 +153,209 @@ function formatMoney(amount) {
   return 'S/ ' + Number(amount || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// -------------------------------------------------------------
+// HELPERS DE ANÁLISIS (fechas locales, períodos, finanzas, deuda)
+// -------------------------------------------------------------
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// Fecha LOCAL (YYYY-MM-DD). toISOString() usa UTC y en Lima (UTC-5) cambia de día a las 7 pm.
+function fmtDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function todayStr() { return fmtDate(new Date()); }
+function addDaysStr(s, n) {
+  const p = s.split('-').map(Number);
+  return fmtDate(new Date(p[0], p[1] - 1, p[2] + n));
+}
+function daysBetween(a, b) {
+  const pa = a.split('-').map(Number), pb = b.split('-').map(Number);
+  return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 86400000);
+}
+function monthLabel(ym) { const p = ym.split('-').map(Number); return MESES[p[1] - 1] + ' ' + p[0]; }
+function monthShort(ym) { return MESES[Number(ym.slice(5, 7)) - 1].slice(0, 3); }
+function prevMonthStr(ym) {
+  let y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1;
+  if (m === 0) { m = 12; y--; }
+  return y + '-' + String(m).padStart(2, '0');
+}
+function escHTML(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function fmtCompact(v) {
+  v = Math.round(v);
+  return v >= 1000 ? (v / 1000).toFixed(1).replace('.0', '') + 'k' : String(v);
+}
+
+// Período seleccionado: 'YYYY-MM' o 'all'
+function getPeriod() {
+  if (!state.period) state.period = todayStr().slice(0, 7);
+  return state.period;
+}
+window.setPeriod = (v) => { state.period = v; render(); };
+function periodOptions() {
+  const set = new Set([todayStr().slice(0, 7)]);
+  state.transactions.forEach(t => { if (t.date) set.add(t.date.slice(0, 7)); });
+  return Array.from(set).sort().reverse();
+}
+function periodSelectorHTML() {
+  const p = getPeriod();
+  const opts = periodOptions().map(m => `<option value="${m}" ${p === m ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
+  return `
+    <div class="period-bar">
+      <label for="periodSelect">Período</label>
+      <select id="periodSelect" onchange="setPeriod(this.value)">${opts}<option value="all" ${p === 'all' ? 'selected' : ''}>Todo el historial</option></select>
+    </div>`;
+}
+function periodTransactions(p) {
+  p = p || getPeriod();
+  return state.transactions.filter(t => p === 'all' || (t.date || '').startsWith(p));
+}
+function allTimeBalance() {
+  return state.transactions.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+}
+
+// Grupos de la regla 50/30/20
+const NEED_RE = /aliment|servicio|vivienda|transporte|salud|educaci|telecom|luz|agua|gas|internet|celular|alquiler/i;
+const SAVE_RE = /deuda|cuota|ahorro|inversi|pr[eé]stamo|amortiz/i;
+function expenseGroup(cat) {
+  cat = cat || '';
+  if (SAVE_RE.test(cat)) return 'save';
+  if (NEED_RE.test(cat)) return 'needs';
+  return 'wants';
+}
+
+function computeFinance(p) {
+  const list = periodTransactions(p);
+  let income = 0, expense = 0, debtPaid = 0;
+  const byCat = {};
+  const groups = { needs: 0, wants: 0, save: 0 };
+  list.forEach(t => {
+    if (t.type === 'income') { income += t.amount; return; }
+    expense += t.amount;
+    byCat[t.category] = (byCat[t.category] || 0) + t.amount;
+    groups[expenseGroup(t.category)] += t.amount;
+    if ((t.category || '').includes('Deuda') || (t.category || '').includes('Cuota')) debtPaid += t.amount;
+  });
+  return {
+    list, income, expense, debtPaid, groups,
+    net: income - expense,
+    cats: Object.entries(byCat).sort((a, b) => b[1] - a[1]),
+    margin: income > 0 ? Math.round(((income - expense) / income) * 100) : null
+  };
+}
+
+function computeDebt(ym) {
+  const today = todayStr();
+  const r = { orig: 0, paid: 0, pending: 0, monthDue: 0, overdue: 0, overduePrev: 0, next: null, nextDebt: null };
+  (state.debts || []).forEach(d => {
+    r.orig += d.totalAmount;
+    (d.installments || []).forEach(i => {
+      if (i.status === 'paid') { r.paid += i.amount; return; }
+      r.pending += i.amount;
+      if (i.dueDate.startsWith(ym)) r.monthDue += i.amount;
+      if (i.dueDate < today) r.overdue += i.amount;
+      if (i.dueDate < ym + '-01') r.overduePrev += i.amount;
+      if (!r.next || i.dueDate < r.next.dueDate) { r.next = i; r.nextDebt = d; }
+    });
+  });
+  r.amortPct = r.orig > 0 ? Math.round((r.paid / r.orig) * 100) : 100;
+  return r;
+}
+
+function getMonthlySeries(n) {
+  let ym = todayStr().slice(0, 7);
+  const months = [];
+  for (let i = 0; i < n; i++) { months.unshift(ym); ym = prevMonthStr(ym); }
+  return months.map(m => { const f = computeFinance(m); return { month: m, income: f.income, expense: f.expense }; });
+}
+
+function deltaHTML(cur, prev, goodWhenUp, label) {
+  const diff = cur - prev;
+  if (Math.abs(diff) < 0.005) return `<span class="delta delta-flat">= igual que ${label}</span>`;
+  const up = diff > 0;
+  return `<span class="delta ${up === goodWhenUp ? 'delta-good' : 'delta-bad'}">${up ? '▲' : '▼'} ${formatMoney(Math.abs(diff))} vs ${label}</span>`;
+}
+function meterHTML(pct, color) {
+  return `<div class="meter"><div class="meter-fill" style="width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></div></div>`;
+}
+
+// Paneles reutilizables --------------------------------------
+function categoryPanelHTML(fin) {
+  const top = fin.cats.slice(0, 6);
+  const rest = fin.cats.slice(6).reduce((s, c) => s + c[1], 0);
+  if (rest > 0) top.push(['Otras categorías', rest]);
+  const max = top.length ? top[0][1] : 1;
+  return `
+    <div class="card-panel">
+      <div class="panel-head"><h3>🧾 Gastos por categoría</h3><span style="font-size:12px;color:var(--text-muted)">${formatMoney(fin.expense)} en total</span></div>
+      ${top.length ? top.map(([name, val]) => `
+        <div class="cat-row">
+          <span class="cat-name" title="${escHTML(name)}">${escHTML(name)}</span>
+          ${meterHTML((val / max) * 100, 'var(--primary)')}
+          <span class="cat-val">${formatMoney(val)} <small style="color:var(--text-dim);font-weight:600">${Math.round((val / fin.expense) * 100)}%</small></span>
+        </div>`).join('') : '<p style="color:var(--text-muted);text-align:center;padding:18px">Sin gastos registrados en este período.</p>'}
+    </div>`;
+}
+
+function budgetRulePanelHTML(fin) {
+  const rows = [
+    { key: 'needs', label: 'Necesidades', target: 50, sub: 'Alimentación, servicios, vivienda, transporte, salud', max: true },
+    { key: 'wants', label: 'Deseos y estilo de vida', target: 30, sub: 'Ocio, salidas y otros gastos', max: true },
+    { key: 'save', label: 'Deuda y ahorro', target: 20, sub: 'Cuotas, préstamos, aportes a ahorro', max: false }
+  ];
+  const inc = fin.income;
+  return `
+    <div class="card-panel">
+      <div class="panel-head"><h3>📊 Regla 50 / 30 / 20 (real vs meta)</h3><span style="font-size:12px;color:var(--text-muted)">Sobre tus ingresos del período</span></div>
+      ${inc > 0 ? rows.map(r => {
+        const amount = fin.groups[r.key];
+        const pct = Math.round((amount / inc) * 100);
+        const ok = r.max ? pct <= r.target : pct >= r.target;
+        const color = ok ? 'var(--success)' : (r.max ? 'var(--danger)' : 'var(--warning)');
+        return `
+          <div class="rule-row">
+            <div class="rule-head"><span><b>${r.label}</b> <small style="color:var(--text-dim)">· meta ${r.max ? 'máx.' : 'mín.'} ${r.target}%</small></span><span style="color:${color};font-weight:800">${pct}% · ${formatMoney(amount)}</span></div>
+            <div class="meter">
+              <div class="meter-fill" style="width:${Math.min(100, pct)}%;background:${color}"></div>
+              <div class="rule-marker" style="left:${r.target}%"></div>
+            </div>
+            <small style="color:var(--text-dim)">${r.sub}</small>
+          </div>`;
+      }).join('') : '<p style="color:var(--text-muted);text-align:center;padding:18px">Registra un ingreso en este período para comparar tu gasto con la regla 50/30/20.</p>'}
+    </div>`;
+}
+
+function coveragePanelHTML() {
+  const cm = todayStr().slice(0, 7);
+  const inc = computeFinance(cm).income;
+  const debt = computeDebt(cm);
+  const rec = (state.recurringExpenses || []).filter(r => !r.paidThisMonth).reduce((s, x) => s + x.amount, 0);
+  const total = debt.monthDue + debt.overduePrev + rec;
+  const balance = allTimeBalance();
+  const scale = Math.max(total, inc, 1);
+  const segs = [
+    { label: 'Cuotas de deuda del mes', val: debt.monthDue, color: 'var(--primary)' },
+    { label: 'Cuotas vencidas de meses anteriores', val: debt.overduePrev, color: 'var(--danger)' },
+    { label: 'Gastos fijos por pagar', val: rec, color: 'var(--warning)' }
+  ].filter(s => s.val > 0);
+  let status, statusColor;
+  if (total === 0) { status = 'Sin compromisos pendientes este mes'; statusColor = 'var(--success)'; }
+  else if (inc >= total) { status = `Cubierto con tus ingresos del mes · sobran ${formatMoney(inc - total)}`; statusColor = 'var(--success)'; }
+  else if (balance >= total) { status = 'Cubierto con tu saldo acumulado (los ingresos del mes no alcanzan solos)'; statusColor = 'var(--warning)'; }
+  else { status = `No alcanza · faltan ${formatMoney(total - Math.max(balance, 0))}`; statusColor = 'var(--danger)'; }
+  return `
+    <div class="card-panel" style="margin-bottom:20px">
+      <div class="panel-head"><h3>🛡️ ¿Cubro mis compromisos de ${monthLabel(cm)}?</h3><span style="font-size:12px;font-weight:800;color:${statusColor}">${status}</span></div>
+      <div class="meter meter-stack">
+        ${segs.map(s => `<div class="meter-fill" style="width:${(s.val / scale) * 100}%;background:${s.color}" title="${s.label}"></div>`).join('')}
+      </div>
+      <div class="legend" style="margin:10px 0 0">
+        ${segs.map(s => `<span><i style="background:${s.color}"></i>${s.label} ${formatMoney(s.val)}</span>`).join('')}
+        <span>Total ${formatMoney(total)} de ${formatMoney(inc)} ingresados${inc > 0 && total > 0 ? ' (' + Math.round((total / inc) * 100) + '%)' : ''}</span>
+      </div>
+    </div>`;
+}
+
 // Sonido Web Audio API
 function playChime(type = 'success') {
   try {
@@ -192,37 +395,66 @@ function toast(msg, icon = 'ℹ️') {
 }
 
 // Cálculo del Índice Integral de Disciplina (0 a 100%)
-function calculateDisciplineScore() {
-  const today = new Date().toISOString().slice(0, 10);
-  const todayTasks = state.agenda.filter(a => a.date === today);
-  
-  // 1. Tareas y hábitos cumplidos (40%)
-  const taskRate = todayTasks.length ? (todayTasks.filter(t => t.done).length / todayTasks.length) : 0.8;
-  
-  // 2. Control financiero registrado hoy (30%)
-  const hasFinanceToday = state.transactions.some(t => t.date === today);
-  const financeRate = hasFinanceToday ? 1 : 0.5;
-  
-  // 3. Disciplina en Deudas y Cuotas (15%)
+// Índice de disciplina de una fecha (0 a 100). Los componentes sin datos no cuentan (se reparten los pesos).
+function disciplineForDate(dateStr) {
+  const today = todayStr();
+  const tasks = state.agenda.filter(a => a.date === dateStr);
+  const hasTx = state.transactions.some(t => t.date === dateStr);
+  if (!tasks.length && !hasTx && dateStr !== today) return null;
+  const parts = [];
+  if (tasks.length) parts.push([40, tasks.filter(t => t.done).length / tasks.length]);
+  parts.push([30, hasTx ? 1 : 0]);
   const debts = state.debts || [];
-  let debtRate = 1;
-  if (debts.length > 0) {
-    const overdue = debts.some(d => (d.installments || []).some(i => i.status === 'pending' && i.dueDate < today));
-    debtRate = overdue ? 0.4 : 1;
+  if (debts.length) {
+    const overdue = debts.some(d => (d.installments || []).some(i =>
+      i.dueDate < dateStr && (i.status === 'pending' || (i.paidDate && i.paidDate > dateStr))));
+    parts.push([15, overdue ? 0.4 : 1]);
   }
-
-  // 4. Sesiones Pomodoro / Enfoque (15%)
-  const pomodoroRate = Math.min(1, (state.pomodoro.sessionsCompleted || 0) / 3);
-
-  const score = Math.round((taskRate * 40) + (financeRate * 30) + (debtRate * 15) + (pomodoroRate * 15));
-  return Math.max(15, Math.min(100, score));
+  if (dateStr === today) parts.push([15, Math.min(1, (state.pomodoro.sessionsCompleted || 0) / 3)]);
+  const w = parts.reduce((s, p) => s + p[0], 0);
+  return Math.round(parts.reduce((s, p) => s + p[0] * p[1], 0) / w * 100);
 }
 
+function calculateDisciplineScore() {
+  const s = disciplineForDate(todayStr());
+  return s === null ? 0 : s;
+}
+
+// Racha real: días seguidos con índice >= 60. Hoy no rompe la racha mientras no termina.
+const STREAK_MIN = 60;
 function getDisciplineStreak() {
-  return 7;
+  let streak = 0;
+  let d = todayStr();
+  for (let i = 0; i < 90; i++) {
+    const s = disciplineForDate(d);
+    const ok = s !== null && s >= STREAK_MIN;
+    if (ok) streak++;
+    else if (i > 0) break;
+    d = addDaysStr(d, -1);
+  }
+  return streak;
 }
+
+function getWeekSeries() {
+  const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const t = todayStr();
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = addDaysStr(t, -i);
+    const p = d.split('-').map(Number);
+    out.push({ date: d, label: i === 0 ? 'Hoy' : names[new Date(p[0], p[1] - 1, p[2]).getDay()], score: disciplineForDate(d) });
+  }
+  return out;
+}
+
 
 // Inicialización de Interfaz
+window.addEventListener('resize', () => {
+  if (state.view !== 'indicadores') return;
+  clearTimeout(window.__chartResize);
+  window.__chartResize = setTimeout(() => { drawDisciplineChart(); drawFinanceBarChart(); }, 150);
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   setupPinLock();
@@ -594,56 +826,33 @@ function render() {
 // 1. DASHBOARD
 // -------------------------------------------------------------
 function renderDashboard(container) {
-  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
-  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
-  const balance = totalInc - totalExp;
+  const today = todayStr();
+  const cm = today.slice(0, 7);
+  const p = getPeriod();
+  const fin = computeFinance(p);
+  const prevYm = p !== 'all' ? prevMonthStr(p) : null;
+  const prevFin = prevYm ? computeFinance(prevYm) : null;
+  const hasPrev = !!(prevFin && prevFin.list.length);
+  const prevLbl = prevYm ? monthShort(prevYm) : '';
+  const balance = allTimeBalance();
   const score = calculateDisciplineScore();
-  const today = new Date().toISOString().slice(0, 10);
+  const streak = getDisciplineStreak();
   const todayTasks = state.agenda.filter(a => a.date === today);
   const doneTasks = todayTasks.filter(a => a.done).length;
   const todayExp = state.transactions.filter(t => t.type === 'expense' && t.date === today).reduce((s, x) => s + x.amount, 0);
+  const debt = computeDebt(cm);
   const budget = state.user.monthlyBudget || 1500;
-  const budgetPct = Math.min(100, Math.round((totalExp / budget) * 100));
-
-  // Deudas Cálculos
-  const debts = state.debts || [];
-  let totalPendingDebt = 0;
-  let monthlyDebtCommitments = 0;
-  let nextUrgentInstallment = null;
-  let nextUrgentDebt = null;
-
-  const currentMonth = new Date().toISOString().slice(0, 7);
-
-  debts.forEach(d => {
-    (d.installments || []).forEach(inst => {
-      if (inst.status === 'pending') {
-        totalPendingDebt += inst.amount;
-        if (inst.dueDate.startsWith(currentMonth)) {
-          monthlyDebtCommitments += inst.amount;
-        }
-        if (!nextUrgentInstallment || inst.dueDate < nextUrgentInstallment.dueDate) {
-          nextUrgentInstallment = inst;
-          nextUrgentDebt = d;
-        }
-      }
-    });
-  });
-
-  // Gastos Fijos y Variables pendientes del mes
-  const recurring = state.recurringExpenses || [];
-  const monthlyRecurringPending = recurring.filter(r => !r.paidThisMonth).reduce((s, x) => s + x.amount, 0);
-  const totalCommitmentsToCover = monthlyDebtCommitments + monthlyRecurringPending;
-  const isCovered = totalInc >= totalCommitmentsToCover;
-  const incomeGap = Math.max(0, totalCommitmentsToCover - totalInc);
-  const incomeSurplus = Math.max(0, totalInc - totalCommitmentsToCover);
-  const coveragePct = totalCommitmentsToCover > 0 ? Math.min(100, Math.round((totalInc / totalCommitmentsToCover) * 100)) : 100;
+  const budgetPct = Math.round((fin.expense / budget) * 100);
+  const budgetColor = budgetPct >= 100 ? 'var(--danger)' : budgetPct >= 80 ? 'var(--warning)' : 'var(--success)';
+  const periodTxt = p === 'all' ? 'todo el historial' : monthLabel(p);
 
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   container.innerHTML = `
-    <!-- Hero Discipline Banner -->
+    ${periodSelectorHTML()}
+
     <div class="dashboard-hero">
       <div class="hero-gauge">
         <svg viewBox="0 0 90 90">
@@ -667,10 +876,9 @@ function renderDashboard(container) {
         <h3>${score >= 80 ? '🌟 Nivel Imparable' : score >= 60 ? '⚡ Nivel Constante' : '🌱 Nivel en Desarrollo'}</h3>
         <p>"La disciplina es el puente entre tus metas financieras y tu libertad diaria."</p>
         <div class="hero-tags">
-          <span class="hero-tag">🔥 7 días racha</span>
+          <span class="hero-tag">🔥 ${streak} ${streak === 1 ? 'día' : 'días'} de racha</span>
           <span class="hero-tag">📋 ${doneTasks}/${todayTasks.length} tareas hoy</span>
           <span class="hero-tag">💸 ${formatMoney(todayExp)} gastado hoy</span>
-          <span class="hero-tag">📧 tualiadoenusaforms@gmail.com</span>
         </div>
       </div>
 
@@ -681,72 +889,77 @@ function renderDashboard(container) {
       </div>
     </div>
 
-    <!-- 3 TARJETAS PRINCIPALES SOLICITADAS: 1. SALDO ACTUAL, 2. INGRESOS TOTALES, 3. DEUDAS TOTALES -->
     <div class="top-kpi-trio">
-      <!-- 1. Saldo Actual -->
       <div class="quad-card" style="border-left: 4px solid var(--primary);">
         <div class="quad-card-head">
-          <span>1. 💰 Saldo Actual</span>
+          <span>💰 Saldo disponible</span>
           <div class="quad-card-icon" style="background:var(--primary-glow);color:var(--primary)">💼</div>
         </div>
-        <div class="quad-card-value" style="color:${balance >= 0 ? 'var(--primary)' : 'var(--danger)'}">
-          ${formatMoney(balance)}
-        </div>
-        <div class="quad-card-sub">Dinero neto disponible en mano</div>
-        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='finanzas';render()">
-          Ver Movimientos ➔
-        </button>
+        <div class="quad-card-value" style="color:${balance >= 0 ? 'var(--primary)' : 'var(--danger)'}">${formatMoney(balance)}</div>
+        <div class="quad-card-sub">Acumulado: todos los ingresos menos todos los gastos</div>
+        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='finanzas';render()">Ver Movimientos ➔</button>
       </div>
 
-      <!-- 2. Ingresos Totales -->
       <div class="quad-card" style="border-left: 4px solid var(--success);">
         <div class="quad-card-head">
-          <span>2. 💵 Ingresos Totales</span>
+          <span>💵 Ingresos · ${p === 'all' ? 'historial' : monthShort(p)}</span>
           <div class="quad-card-icon" style="background:var(--success-bg);color:var(--success)">↗️</div>
         </div>
-        <div class="quad-card-value" style="color:var(--success)">${formatMoney(totalInc)}</div>
-        <div class="quad-card-sub">Entradas registradas del mes</div>
-        <button class="btn btn-sm btn-success" style="width:100%;margin-top:6px" onclick="openTxModal('income')">
-          ＋ Registrar Ingreso
-        </button>
+        <div class="quad-card-value" style="color:var(--success)">${formatMoney(fin.income)}</div>
+        <div class="quad-card-sub">${hasPrev ? deltaHTML(fin.income, prevFin.income, true, prevLbl) : 'Entradas registradas en ' + periodTxt}</div>
+        <button class="btn btn-sm btn-success" style="width:100%;margin-top:6px" onclick="openTxModal('income')">＋ Registrar Ingreso</button>
       </div>
 
-      <!-- 3. Deudas Totales -->
       <div class="quad-card" style="border-left: 4px solid var(--danger);">
         <div class="quad-card-head">
-          <span>3. 💳 Deudas Totales</span>
-          <div class="quad-card-icon" style="background:var(--danger-bg);color:var(--danger)">💳</div>
+          <span>🧾 Gastos · ${p === 'all' ? 'historial' : monthShort(p)}</span>
+          <div class="quad-card-icon" style="background:var(--danger-bg);color:var(--danger)">↘️</div>
         </div>
-        <div class="quad-card-value" style="color:var(--danger)">${formatMoney(totalPendingDebt)}</div>
+        <div class="quad-card-value" style="color:var(--danger)">${formatMoney(fin.expense)}</div>
         <div class="quad-card-sub">
-          ${monthlyDebtCommitments > 0 ? `Cuotas por pagar este mes: <b>${formatMoney(monthlyDebtCommitments)}</b>` : 'Cuotas al día este mes'}
+          ${hasPrev ? deltaHTML(fin.expense, prevFin.expense, false, prevLbl) + '<br>' : ''}
+          ${p !== 'all' ? `${budgetPct}% del presupuesto de ${formatMoney(budget)}` : 'Gasto total registrado'}
         </div>
-        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='deudas';render()">
-          Ver Deudas & Cuotas ➔
-        </button>
+        ${p !== 'all' ? meterHTML(budgetPct, budgetColor) : ''}
+      </div>
+
+      <div class="quad-card" style="border-left: 4px solid var(--purple);">
+        <div class="quad-card-head">
+          <span>💳 Deuda pendiente</span>
+          <div class="quad-card-icon" style="background:var(--purple-bg);color:var(--purple)">💳</div>
+        </div>
+        <div class="quad-card-value" style="color:var(--purple)">${formatMoney(debt.pending)}</div>
+        <div class="quad-card-sub">
+          Amortizado ${debt.amortPct}% · cuotas de este mes: <b>${formatMoney(debt.monthDue)}</b>
+          ${debt.overdue > 0 ? `<br><b style="color:var(--danger)">⚠ Vencido: ${formatMoney(debt.overdue)}</b>` : ''}
+        </div>
+        <button class="btn btn-sm btn-soft" style="width:100%;margin-top:6px" onclick="state.view='deudas';render()">Ver Deudas & Cuotas ➔</button>
       </div>
     </div>
 
-    <!-- Recordatorio Directo de Próxima Cuota de Deuda (Si existe pendiente) -->
-    ${nextUrgentInstallment ? `
+    ${coveragePanelHTML()}
+
+    ${debt.next ? `
       <div class="card-panel" style="margin-bottom:20px;border-left:4px solid var(--primary);padding:16px 20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
             <span class="status-badge status-pending">💳 Próxima Cuota por Pagar</span>
-            <h4 style="font-size:16px;font-weight:800;margin:6px 0 2px">${nextUrgentDebt.title} · Cuota ${nextUrgentInstallment.number} de ${nextUrgentDebt.installmentsCount}</h4>
+            <h4 style="font-size:16px;font-weight:800;margin:6px 0 2px">${escHTML(debt.nextDebt.title)} · Cuota ${debt.next.number} de ${debt.nextDebt.installmentsCount}</h4>
             <p style="color:var(--text-muted);font-size:12.5px;margin:0">
-              Vence: <b>${nextUrgentInstallment.dueDate}</b> · Acreedor: ${nextUrgentDebt.creditor} · Monto: <b style="color:var(--text-main);font-size:14px">${formatMoney(nextUrgentInstallment.amount)}</b>
+              Vence: <b>${debt.next.dueDate}</b> · Acreedor: ${escHTML(debt.nextDebt.creditor)} · Monto: <b style="color:var(--text-main);font-size:14px">${formatMoney(debt.next.amount)}</b>
             </p>
           </div>
-          <button class="btn btn-success" onclick="openPayDebtModal('${nextUrgentDebt.id}', ${nextUrgentInstallment.number})">
-            💳 Pagar Cuota Ahora (Descontar de Ingresos)
-          </button>
+          <button class="btn btn-success" onclick="openPayDebtModal('${debt.nextDebt.id}', ${debt.next.number})">💳 Pagar Cuota Ahora (Descontar de Ingresos)</button>
         </div>
       </div>
     ` : ''}
 
-    <!-- Dual Layout: Recent Agenda & Transactions -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+    <div class="dash-grid">
+      ${categoryPanelHTML(fin)}
+      ${budgetRulePanelHTML(fin)}
+    </div>
+
+    <div class="dash-grid">
       <div class="card-panel">
         <div class="panel-head">
           <h3>📅 Agenda Prioritaria de Hoy</h3>
@@ -771,7 +984,7 @@ function renderDashboard(container) {
 
       <div class="card-panel">
         <div class="panel-head">
-          <h3>💰 Movimientos Financieros Recientes</h3>
+          <h3>💰 Últimos movimientos</h3>
           <button class="btn btn-sm btn-soft" onclick="state.view='finanzas';render()">Ver finanzas</button>
         </div>
         <div class="tx-list">
@@ -797,10 +1010,9 @@ function renderDashboard(container) {
 // 2. FINANZAS DIARIAS (INGRESOS, GASTOS & PAGOS)
 // -------------------------------------------------------------
 function renderFinanzas(container) {
-  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
-  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
-  const balance = totalInc - totalExp;
-  const debtExp = state.transactions.filter(t => t.type === 'expense' && (t.category.includes('Deuda') || t.category.includes('Cuota'))).reduce((s, x) => s + x.amount, 0);
+  const p = getPeriod();
+  const fin = computeFinance(p);
+  const balance = allTimeBalance();
 
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
@@ -815,59 +1027,40 @@ function renderFinanzas(container) {
       </div>
     </div>
 
+    ${periodSelectorHTML()}
+
     <div class="kpi-grid">
       <div class="kpi-card">
-        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Total Ingresos</span>
-        <div class="kpi-value" style="color:var(--success)">${formatMoney(totalInc)}</div>
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Ingresos del período</span>
+        <div class="kpi-value" style="color:var(--success)">${formatMoney(fin.income)}</div>
       </div>
       <div class="kpi-card">
-        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Total Gastos</span>
-        <div class="kpi-value" style="color:var(--danger)">${formatMoney(totalExp)}</div>
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Gastos del período</span>
+        <div class="kpi-value" style="color:var(--danger)">${formatMoney(fin.expense)}</div>
       </div>
       <div class="kpi-card">
-        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Balance Neto Disponible</span>
-        <div class="kpi-value" style="color:${balance >= 0 ? 'var(--primary)' : 'var(--danger)'}">
-          ${formatMoney(balance)}
-        </div>
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Balance del período</span>
+        <div class="kpi-value" style="color:${fin.net >= 0 ? 'var(--primary)' : 'var(--danger)'}">${formatMoney(fin.net)}</div>
+        <div class="kpi-sub">${fin.margin !== null ? 'Margen: ' + fin.margin + '% de los ingresos · ' : ''}Saldo acumulado: ${formatMoney(balance)}</div>
       </div>
       <div class="kpi-card">
-        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Amortizado en Deudas</span>
-        <div class="kpi-value" style="color:var(--purple)">${formatMoney(debtExp)}</div>
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Amortizado en deudas</span>
+        <div class="kpi-value" style="color:var(--purple)">${formatMoney(fin.debtPaid)}</div>
       </div>
     </div>
 
-    <!-- Regla de Presupuesto 50/30/20 -->
-    <div class="card-panel" style="margin-bottom:20px">
-      <div class="panel-head">
-        <h3>📊 Distribución de Presupuesto 50 / 30 / 20</h3>
-        <span style="font-size:12px;color:var(--text-muted)">Basado en tus ingresos</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:10px">
-        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
-          <small style="color:var(--text-dim);font-weight:700">50% Necesidades Básicas</small>
-          <strong style="display:block;font-size:17px;color:var(--primary);margin:4px 0">${formatMoney(totalInc * 0.5)}</strong>
-          <small style="color:var(--text-muted)">Alimentación, servicios, vivienda y salud</small>
-        </div>
-        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
-          <small style="color:var(--text-dim);font-weight:700">30% Deseos y Estilo de Vida</small>
-          <strong style="display:block;font-size:17px;color:var(--warning);margin:4px 0">${formatMoney(totalInc * 0.3)}</strong>
-          <small style="color:var(--text-muted)">Ocio, salidas, suscripciones y extras</small>
-        </div>
-        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
-          <small style="color:var(--text-dim);font-weight:700">20% Cuotas de Deuda y Ahorro</small>
-          <strong style="display:block;font-size:17px;color:var(--success);margin:4px 0">${formatMoney(totalInc * 0.2)}</strong>
-          <small style="color:var(--text-muted)">Amortización de cuotas y fondo de reserva</small>
-        </div>
-      </div>
+    <div class="dash-grid">
+      ${categoryPanelHTML(fin)}
+      ${budgetRulePanelHTML(fin)}
     </div>
 
     <div class="card-panel">
       <div class="panel-head">
-        <h3>Historial Completo de Movimientos</h3>
+        <h3>Historial de Movimientos · ${p === 'all' ? 'todo' : monthLabel(p)}</h3>
         <input type="text" placeholder="Buscar concepto o categoría…" id="txSearchInput" oninput="filterTransactions(this.value)" style="max-width:240px">
       </div>
       <div class="tx-list" id="txFullList">
-        ${renderTxList(state.transactions)}
+        ${renderTxList(fin.list)}
       </div>
     </div>
   `;
@@ -895,7 +1088,7 @@ function renderTxList(list) {
 window.filterTransactions = (q) => {
   const el = $('#txFullList');
   if (!el) return;
-  const filtered = state.transactions.filter(t => 
+  const filtered = periodTransactions().filter(t => 
     t.title.toLowerCase().includes(q.toLowerCase()) || 
     t.category.toLowerCase().includes(q.toLowerCase()) ||
     t.method.toLowerCase().includes(q.toLowerCase())
@@ -915,7 +1108,7 @@ function renderDeudas(container) {
   let nextUrgentInstallment = null;
   let nextUrgentDebt = null;
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = todayStr().slice(0, 7);
 
   debts.forEach(d => {
     totalOriginal += d.totalAmount;
@@ -1169,7 +1362,7 @@ window.openDebtModal = () => {
   if (!modal) return;
   $('#debtForm').reset();
   $('#debtEditId').value = '';
-  $('#debtFirstDueDate').value = new Date().toISOString().slice(0, 10);
+  $('#debtFirstDueDate').value = todayStr();
   $('#debtInstallmentsCount').value = '6';
   modal.classList.remove('hidden');
 };
@@ -1179,7 +1372,7 @@ window.saveDebt = (e) => {
   const totalAmount = parseFloat($('#debtTotal').value) || 0;
   const count = parseInt($('#debtInstallmentsCount').value, 10) || 1;
   const installmentAmount = parseFloat($('#debtInstallmentAmount').value) || (totalAmount / count);
-  const firstDueDate = $('#debtFirstDueDate').value || new Date().toISOString().slice(0, 10);
+  const firstDueDate = $('#debtFirstDueDate').value || todayStr();
   const frequency = $('#debtFrequency').value;
 
   // Generar cronograma de cuotas
@@ -1268,7 +1461,7 @@ window.openPayDebtModal = (debtId, instNum = null) => {
   $('#payDebtUserBalanceDisplay').textContent = formatMoney(balance);
 
   $('#payDebtAmount').value = targetInst.amount.toFixed(2);
-  $('#payDebtDate').value = new Date().toISOString().slice(0, 10);
+  $('#payDebtDate').value = todayStr();
   $('#payDebtRecordExpense').checked = true;
   $('#payDebtNotes').value = `Pago cuota ${targetInst.number}/${debt.installmentsCount} · ${debt.title}`;
 
@@ -1291,7 +1484,7 @@ window.executeDebtPayment = (e) => {
   const debtId = $('#payTargetDebtId').value;
   const instNumber = parseInt($('#payTargetInstNumber').value, 10);
   const payAmount = parseFloat($('#payDebtAmount').value) || 0;
-  const payDate = $('#payDebtDate').value || new Date().toISOString().slice(0, 10);
+  const payDate = $('#payDebtDate').value || todayStr();
   const payMethod = $('#payDebtMethod').value;
   const recordExpense = $('#payDebtRecordExpense').checked;
   const payNotes = $('#payDebtNotes').value.trim();
@@ -1456,7 +1649,7 @@ window.exportDebtsCsv = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `cronograma_deudas_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `cronograma_deudas_${todayStr()}.csv`;
   a.click();
   toast('Cronograma de deudas descargado (.CSV)', '📥');
 };
@@ -1471,7 +1664,7 @@ function renderGastosFijos(container) {
   const balance = totalInc - totalExp;
 
   // Cuotas de deuda pendientes del mes
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = todayStr().slice(0, 7);
   let monthlyDebtCommitments = 0;
   (state.debts || []).forEach(d => {
     (d.installments || []).forEach(i => {
@@ -1594,7 +1787,7 @@ function renderGastosFijos(container) {
 // 4. AGENDA VIRTUAL & HÁBITOS
 // -------------------------------------------------------------
 function renderAgenda(container) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <div>
@@ -1822,7 +2015,7 @@ function renderAhorros(container) {
 
 window.openSavingsModal = () => {
   $('#savingsModal').classList.remove('hidden');
-  $('#savDate').value = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  $('#savDate').value = addDaysStr(todayStr(), 90);
 };
 
 window.saveSavingsGoal = (e) => {
@@ -1856,7 +2049,7 @@ window.openSavingsContributeModal = (goalId) => {
   $('#savUserBalanceBefore').textContent = formatMoney(balance);
   $('#savContributeAmount').value = '100.00';
   $('#savUserBalanceAfter').textContent = formatMoney(balance - 100);
-  $('#savContributeDate').value = new Date().toISOString().slice(0, 10);
+  $('#savContributeDate').value = todayStr();
   $('#savingsContributeModal').classList.remove('hidden');
 };
 
@@ -1872,7 +2065,7 @@ window.executeSavingsContribute = (e) => {
   e.preventDefault();
   const goalId = $('#savContributeGoalId').value;
   const amount = parseFloat($('#savContributeAmount').value) || 0;
-  const date = $('#savContributeDate').value || new Date().toISOString().slice(0, 10);
+  const date = $('#savContributeDate').value || todayStr();
 
   const goal = (state.savings || []).find(g => g.id === goalId);
   if (!goal) return;
@@ -1997,7 +2190,7 @@ window.openPayRecurringModal = (id) => {
   $('#payRecTitleDisplay').textContent = `${item.title} (${item.category})`;
   $('#payRecUserBalanceDisplay').textContent = formatMoney(balance);
   $('#payRecAmount').value = item.amount.toFixed(2);
-  $('#payRecDate').value = new Date().toISOString().slice(0, 10);
+  $('#payRecDate').value = todayStr();
   $('#payRecurringModal').classList.remove('hidden');
 };
 
@@ -2005,7 +2198,7 @@ window.executeRecurringPayment = (e) => {
   e.preventDefault();
   const id = $('#payRecId').value;
   const amount = parseFloat($('#payRecAmount').value) || 0;
-  const date = $('#payRecDate').value || new Date().toISOString().slice(0, 10);
+  const date = $('#payRecDate').value || todayStr();
   const method = $('#payRecMethod').value;
 
   const item = (state.recurringExpenses || []).find(r => r.id === id);
@@ -2068,7 +2261,7 @@ window.openCuadreModal = () => {
   const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
   const balance = totalInc - totalExp;
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = todayStr().slice(0, 7);
   let monthlyDebtCommitments = 0;
   (state.debts || []).forEach(d => {
     (d.installments || []).forEach(i => {
@@ -2152,7 +2345,7 @@ window.resetDemoTransactionsToMatchIncome = () => {
   if (confirm(`¿Reiniciar tu saldo a ${formatMoney(totalInc)}? Se eliminarán los gastos anteriores de prueba para que tu saldo disponible empiece en ${formatMoney(totalInc)} y puedas ir pagando tus 7 gastos fijos uno por uno de forma exacta.`)) {
     // Mantener únicamente el ingreso
     state.transactions = [
-      { id: 'tx-ingreso-base', type: 'income', title: 'Ingreso Principal del Mes', amount: totalInc, category: 'Sueldo / Ingresos', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Presupuesto mensual para gastos y compromisos' }
+      { id: 'tx-ingreso-base', type: 'income', title: 'Ingreso Principal del Mes', amount: totalInc, category: 'Sueldo / Ingresos', date: todayStr(), method: 'Transferencia', notes: 'Presupuesto mensual para gastos y compromisos' }
     ];
     // Restablecer los gastos fijos a pendientes para que el usuario los pague con el botón
     (state.recurringExpenses || []).forEach(r => {
@@ -2175,7 +2368,7 @@ window.openCalendarSyncModal = () => {
 };
 
 window.openTodayInGoogleCalendar = () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const todayTasks = (state.agenda || []).filter(a => a.date === today && !a.done);
   const task = todayTasks[0] || (state.agenda || [])[0];
   if (!task) {
@@ -2221,7 +2414,7 @@ window.downloadAgendaIcsFile = () => {
     'METHOD:PUBLISH'
   ];
   tasks.forEach(task => {
-    const d = (task.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+    const d = (task.date || todayStr()).replace(/-/g, '');
     const t = (task.time || '09:00').replace(/:/g, '') + '00';
     ics.push('BEGIN:VEVENT');
     ics.push(`UID:task-${task.id}@gestionpersonal.app`);
@@ -2243,7 +2436,7 @@ window.downloadAgendaIcsFile = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `agenda_personal_${new Date().toISOString().slice(0, 10)}.ics`;
+  a.download = `agenda_personal_${todayStr()}.ics`;
   a.click();
   closeModal('calendarSyncModal');
   toast('Calendario descargado (.ICS). Tu celular abrirá Google Calendar para importarlo.', '📲');
@@ -2253,74 +2446,86 @@ window.downloadAgendaIcsFile = () => {
 // 7. INDICADORES CLAVE (KPIS & MÉTRICAS)
 // -------------------------------------------------------------
 function renderIndicadores(container) {
+  const today = todayStr();
+  const cm = today.slice(0, 7);
+  const p = getPeriod();
+  const fin = computeFinance(p);
   const score = calculateDisciplineScore();
   const streak = getDisciplineStreak();
-  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
-  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
-  const balance = totalInc - totalExp;
-  const savingsPct = totalInc > 0 ? Math.round((balance / totalInc) * 100) : 0;
-  const agendaPct = state.agenda.length ? Math.round((state.agenda.filter(a => a.done).length / state.agenda.length) * 100) : 100;
+  const debt = computeDebt(cm);
+  const incCm = computeFinance(cm).income;
 
-  // KPIs de Deuda
-  const debts = state.debts || [];
-  let totalOrig = 0, totalPaidDebt = 0, totalPendingDebt = 0;
-  debts.forEach(d => {
-    totalOrig += d.totalAmount;
-    (d.installments || []).forEach(i => {
-      if (i.status === 'paid') totalPaidDebt += i.amount;
-      else totalPendingDebt += i.amount;
-    });
-  });
-  const debtAmortPct = totalOrig > 0 ? Math.round((totalPaidDebt / totalOrig) * 100) : 100;
+  const pastTasks = state.agenda.filter(a => a.date <= today);
+  const agendaPct = pastTasks.length ? Math.round((pastTasks.filter(a => a.done).length / pastTasks.length) * 100) : null;
+
+  let days = 1;
+  if (p === 'all') {
+    const dates = state.transactions.map(t => t.date).filter(Boolean).sort();
+    days = dates.length ? daysBetween(dates[0], today) + 1 : 1;
+  } else if (p === cm) {
+    days = Number(today.slice(8, 10));
+  } else {
+    days = new Date(Number(p.slice(0, 4)), Number(p.slice(5, 7)), 0).getDate();
+  }
+  const dailyAvg = fin.expense / Math.max(1, days);
+  const debtLoad = incCm > 0 ? Math.round((debt.monthDue / incCm) * 100) : null;
+
+  const savings = state.savings || [];
+  const saved = savings.reduce((s, x) => s + x.currentAmount, 0);
+  const target = savings.reduce((s, x) => s + x.targetAmount, 0);
+  const savedPct = target > 0 ? Math.round((saved / target) * 100) : 0;
+
+  const kpi = (label, value, color, sub) => `
+    <div class="kpi-card">
+      <span style="font-size:12px;font-weight:700;color:var(--text-muted)">${label}</span>
+      <div class="kpi-value" style="color:${color}">${value}</div>
+      <div class="kpi-sub">${sub}</div>
+    </div>`;
 
   container.innerHTML = `
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:12px">
       <h3 style="font-size:20px;font-weight:800">Medición de Todo · Indicadores Clave (KPIs)</h3>
-      <p style="color:var(--text-muted);font-size:13px">Lo que no se mide, no se puede mejorar. Monitorea tu disciplina, finanzas y deuda.</p>
+      <p style="color:var(--text-muted);font-size:13px">Lo que no se mide, no se puede mejorar. Todo se calcula con tus registros reales.</p>
     </div>
+
+    ${periodSelectorHTML()}
 
     <div class="kpi-grid">
-      <div class="kpi-card">
-        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Índice de Disciplina</span>
-        <div class="kpi-value" style="color:var(--warning)">${score}%</div>
-        <div class="kpi-sub">Fórmula: 40% agenda + 30% finanzas + 15% deudas + 15% enfoque</div>
-      </div>
-      <div class="kpi-card">
-        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Racha de Cumplimiento</span>
-        <div class="kpi-value" style="color:#f59e0b">🔥 ${streak} Días</div>
-        <div class="kpi-sub">Consistencia diaria ininterrumpida</div>
-      </div>
-      <div class="kpi-card">
-        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Desendeudamiento</span>
-        <div class="kpi-value" style="color:var(--primary)">${debtAmortPct}%</div>
-        <div class="kpi-sub">Deuda cancelada del total original</div>
-      </div>
-      <div class="kpi-card">
-        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Cumplimiento de Agenda</span>
-        <div class="kpi-value" style="color:var(--success)">${agendaPct}%</div>
-        <div class="kpi-sub">Meta diaria: >= 80%</div>
-      </div>
+      ${kpi('Índice de Disciplina (hoy)', score + '%', 'var(--warning)', 'Tareas, registro de movimientos, cuotas al día y enfoque')}
+      ${kpi('Racha de Cumplimiento', '🔥 ' + streak + (streak === 1 ? ' día' : ' días'), '#f59e0b', 'Días seguidos con disciplina ≥ ' + STREAK_MIN + '%')}
+      ${kpi('Cumplimiento de Agenda', agendaPct === null ? '—' : agendaPct + '%', 'var(--success)', 'Tareas hasta hoy · meta ≥ 80%')}
+      ${kpi('Margen del período', fin.margin === null ? '—' : fin.margin + '%', fin.margin !== null && fin.margin < 0 ? 'var(--danger)' : 'var(--primary)', 'Lo que queda de tus ingresos tras gastar')}
+      ${kpi('Gasto diario promedio', formatMoney(dailyAvg), 'var(--danger)', 'En ' + days + (days === 1 ? ' día' : ' días') + ' del período')}
+      ${kpi('Carga de deuda del mes', debtLoad === null ? '—' : debtLoad + '%', debtLoad !== null && debtLoad > 35 ? 'var(--danger)' : 'var(--purple)', 'Cuotas del mes ÷ ingresos del mes · ideal < 35%')}
     </div>
 
-    <!-- Gráfico Canvas Semanal de Disciplina -->
     <div class="card-panel" style="margin-bottom:20px">
       <div class="panel-head">
-        <h3>Evolución Semanal de Disciplina (Canvas)</h3>
-        <span style="font-size:12px;color:var(--text-muted)">Últimos 7 días</span>
+        <h3>Evolución de Disciplina · últimos 7 días</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Los días sin registros quedan vacíos</span>
       </div>
-      <div style="position:relative;width:100%;height:220px;">
-        <canvas id="disciplineChart" width="700" height="220" style="width:100%;height:100%;border-radius:10px;background:rgba(0,0,0,0.2)"></canvas>
-      </div>
+      <canvas id="disciplineChart" class="chart" role="img" aria-label="Línea con el índice de disciplina diario de los últimos 7 días"></canvas>
     </div>
 
-    <!-- Gráfico Canvas Distribución Financiera -->
-    <div class="card-panel">
+    <div class="card-panel" style="margin-bottom:20px">
       <div class="panel-head">
-        <h3>Distribución de Dinero: Ingresos vs Gastos vs Deudas</h3>
-        <span style="font-size:12px;color:var(--text-muted)">Flujo de caja activo</span>
+        <h3>Ingresos vs Gastos · últimos 6 meses</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Flujo de caja mensual</span>
       </div>
-      <div style="position:relative;width:100%;height:180px;">
-        <canvas id="financeBarChart" width="700" height="180" style="width:100%;height:100%;border-radius:10px;background:rgba(0,0,0,0.2)"></canvas>
+      <div class="legend"><span><i style="background:#10b981"></i>Ingresos</span><span><i style="background:#ef4444"></i>Gastos</span></div>
+      <canvas id="financeBarChart" class="chart" role="img" aria-label="Barras de ingresos y gastos por mes de los últimos 6 meses"></canvas>
+    </div>
+
+    <div class="dash-grid">
+      <div class="card-panel">
+        <div class="panel-head"><h3>💳 Desendeudamiento</h3><span style="font-size:12px;color:var(--text-muted)">${debt.amortPct}% pagado</span></div>
+        ${meterHTML(debt.amortPct, 'var(--purple)')}
+        <p style="color:var(--text-muted);font-size:12.5px;margin-top:10px">Pagado ${formatMoney(debt.paid)} de ${formatMoney(debt.orig)} · pendiente ${formatMoney(debt.pending)}</p>
+      </div>
+      <div class="card-panel">
+        <div class="panel-head"><h3>🏦 Ahorro vs metas</h3><span style="font-size:12px;color:var(--text-muted)">${savedPct}% de la meta</span></div>
+        ${meterHTML(savedPct, 'var(--primary)')}
+        <p style="color:var(--text-muted);font-size:12.5px;margin-top:10px">${formatMoney(saved)} ahorrados de ${formatMoney(target)} en ${savings.length} ${savings.length === 1 ? 'meta' : 'metas'}</p>
       </div>
     </div>
   `;
@@ -2331,98 +2536,133 @@ function renderIndicadores(container) {
   }, 50);
 }
 
+function setupCanvas(canvas, height) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  canvas.style.height = height + 'px';
+  const w = (canvas.parentElement && canvas.parentElement.clientWidth) || 600;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h: height };
+}
+
+function chartColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = (n, d) => (cs.getPropertyValue(n) || '').trim() || d;
+  return {
+    text: g('--text-main', '#f8fafc'), muted: g('--text-muted', '#94a3b8'),
+    grid: g('--border', 'rgba(255,255,255,0.08)'), primary: g('--primary', '#3b82f6'),
+    success: g('--success', '#10b981'), danger: g('--danger', '#ef4444'), warning: g('--warning', '#f59e0b')
+  };
+}
+
 function drawDisciplineChart() {
   const canvas = $('#disciplineChart');
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = setupCanvas(canvas, 230);
+  const c = chartColors();
+  const series = getWeekSeries();
+  const padL = 40, padR = 18, padT = 26, padB = 30;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const X = i => padL + (i * plotW) / (series.length - 1);
+  const Y = v => padT + plotH - (v / 100) * plotH;
+
   ctx.clearRect(0, 0, w, h);
+  ctx.font = '11px sans-serif';
+  ctx.textBaseline = 'middle';
 
-  const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Hoy'];
-  const values = [65, 70, 80, 75, 85, 90, calculateDisciplineScore()];
+  [0, 25, 50, 75, 100].forEach(v => {
+    ctx.strokeStyle = c.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(w - padR, Y(v)); ctx.stroke();
+    ctx.fillStyle = c.muted; ctx.textAlign = 'right';
+    ctx.fillText(v + '%', padL - 8, Y(v));
+  });
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-  ctx.lineWidth = 1;
-  for (let y = 30; y < h - 30; y += 40) {
-    ctx.beginPath();
-    ctx.moveTo(40, y);
-    ctx.lineTo(w - 20, y);
-    ctx.stroke();
-  }
+  const goal = (state.user && state.user.disciplineGoal) || 85;
+  ctx.save();
+  ctx.setLineDash([6, 4]); ctx.strokeStyle = c.success; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(padL, Y(goal)); ctx.lineTo(w - padR, Y(goal)); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = c.success; ctx.textAlign = 'right';
+  ctx.fillText('Meta ' + goal + '%', w - padR, Y(goal) - 9);
 
   ctx.beginPath();
-  ctx.strokeStyle = '#3b82f6';
-  ctx.lineWidth = 3;
-  const step = (w - 70) / (values.length - 1);
-
-  values.forEach((v, i) => {
-    const x = 40 + i * step;
-    const y = h - 40 - (v / 100) * (h - 80);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  ctx.strokeStyle = c.primary; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  let started = false;
+  series.forEach((s, i) => {
+    if (s.score === null) { started = false; return; }
+    if (!started) { ctx.moveTo(X(i), Y(s.score)); started = true; } else { ctx.lineTo(X(i), Y(s.score)); }
   });
   ctx.stroke();
 
-  values.forEach((v, i) => {
-    const x = 40 + i * step;
-    const y = h - 40 - (v / 100) * (h - 80);
-    ctx.fillStyle = '#3b82f6';
-    ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText(`${v}%`, x - 10, y - 10);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = '11px sans-serif';
-    ctx.fillText(days[i], x - 10, h - 15);
+  series.forEach((s, i) => {
+    const x = X(i);
+    ctx.textAlign = 'center';
+    if (s.score === null) {
+      ctx.strokeStyle = c.muted; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, Y(0), 3.5, 0, Math.PI * 2); ctx.stroke();
+    } else {
+      ctx.fillStyle = c.primary;
+      ctx.beginPath(); ctx.arc(x, Y(s.score), 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = c.text; ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(s.score + '%', x, Y(s.score) - 13);
+    }
+    ctx.fillStyle = i === series.length - 1 ? c.text : c.muted;
+    ctx.font = (i === series.length - 1 ? 'bold ' : '') + '11px sans-serif';
+    ctx.fillText(s.label, x, h - 12);
   });
 }
 
 function drawFinanceBarChart() {
   const canvas = $('#financeBarChart');
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = setupCanvas(canvas, 230);
+  const c = chartColors();
+  const data = getMonthlySeries(6);
+  const padL = 46, padR = 12, padT = 20, padB = 28;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const max = Math.max(...data.map(d => Math.max(d.income, d.expense)), 100) * 1.15;
+  const Y = v => padT + plotH - (v / max) * plotH;
+  const groupW = plotW / data.length;
+  const barW = Math.max(8, Math.min(28, groupW * 0.28));
+
   ctx.clearRect(0, 0, w, h);
+  ctx.font = '11px sans-serif';
+  ctx.textBaseline = 'middle';
 
-  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0) || 1;
-  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
-  const debts = (state.debts || []).reduce((s, d) => s + (d.installments || []).filter(i => i.status === 'pending').reduce((a, b) => a + b.amount, 0), 0);
-  const savings = (state.savings || []).reduce((s, x) => s + x.currentAmount, 0);
+  for (let i = 0; i <= 4; i++) {
+    const v = (max / 4) * i;
+    ctx.strokeStyle = c.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(w - padR, Y(v)); ctx.stroke();
+    ctx.fillStyle = c.muted; ctx.textAlign = 'right';
+    ctx.fillText(fmtCompact(v), padL - 8, Y(v));
+  }
 
-  const categories = [
-    { label: 'Ingresos', val: totalInc, color: '#10b981' },
-    { label: 'Gastos', val: totalExp, color: '#ef4444' },
-    { label: 'Deuda Pendiente', val: debts, color: '#f59e0b' },
-    { label: 'Ahorro Acumulado', val: savings, color: '#3b82f6' }
-  ];
-
-  const maxVal = Math.max(...categories.map(c => c.val), 100);
-  const barWidth = 44;
-  const gap = (w - (categories.length * barWidth)) / (categories.length + 1);
-
-  categories.forEach((cat, idx) => {
-    const barHeight = (cat.val / maxVal) * (h - 70);
-    const x = gap + idx * (barWidth + gap);
-    const y = h - 35 - barHeight;
-
-    ctx.fillStyle = cat.color;
+  const bar = (x, val, color) => {
+    if (val <= 0) return;
+    const y = Y(val), bh = padT + plotH - y;
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, barHeight, [6, 6, 0, 0]);
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, barW, bh, [5, 5, 0, 0]); else ctx.rect(x, y, barW, bh);
     ctx.fill();
+    ctx.fillStyle = c.text; ctx.textAlign = 'center'; ctx.font = '10px sans-serif';
+    ctx.fillText(fmtCompact(val), x + barW / 2, y - 8);
+  };
 
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 10px sans-serif';
-    ctx.fillText(`S/ ${Math.round(cat.val)}`, x - 4, y - 6);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '10.5px sans-serif';
-    ctx.fillText(cat.label, x - 10, h - 14);
+  data.forEach((d, i) => {
+    const cx = padL + groupW * i + groupW / 2;
+    bar(cx - barW - 2, d.income, '#10b981');
+    bar(cx + 2, d.expense, '#ef4444');
+    const isLast = i === data.length - 1;
+    ctx.fillStyle = isLast ? c.text : c.muted;
+    ctx.font = (isLast ? 'bold ' : '') + '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(monthShort(d.month), cx, h - 12);
   });
 }
+
 
 // -------------------------------------------------------------
 // 8. GOOGLE INTEGRATION & SCRIPTS
@@ -2508,7 +2748,7 @@ function exportTransactionsCsv() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `gestion_personal_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `gestion_personal_${todayStr()}.csv`;
   a.click();
   toast('Movimientos exportados a CSV para Google Sheets', '📗');
 }
@@ -2593,7 +2833,7 @@ window.exportJsonBackup = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `gestion_personal_backup_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `gestion_personal_backup_${todayStr()}.json`;
   a.click();
   toast('Copia de seguridad descargada', '💾');
 };
@@ -2628,14 +2868,14 @@ window.openTxModal = (type) => {
   modal.classList.remove('hidden');
   $('#txType').value = type;
   $('#txModalTitle').textContent = type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto';
-  $('#txDate').value = new Date().toISOString().slice(0, 10);
+  $('#txDate').value = todayStr();
 };
 
 window.openAgendaModal = () => {
   const modal = $('#agendaModal');
   if (!modal) return;
   modal.classList.remove('hidden');
-  $('#agDate').value = new Date().toISOString().slice(0, 10);
+  $('#agDate').value = todayStr();
 };
 
 window.closeModal = (id) => {
@@ -2651,7 +2891,7 @@ window.saveTransaction = (e) => {
     title: $('#txTitle').value.trim(),
     amount: parseFloat($('#txAmount').value) || 0,
     category: $('#txCategory').value,
-    date: $('#txDate').value || new Date().toISOString().slice(0, 10),
+    date: $('#txDate').value || todayStr(),
     method: $('#txMethod').value,
     notes: $('#txNotes').value.trim()
   };
@@ -2672,7 +2912,7 @@ window.saveAgendaItem = (e) => {
     time: $('#agTime').value || '09:00',
     priority: $('#agPriority').value,
     type: $('#agType').value,
-    date: $('#agDate').value || new Date().toISOString().slice(0, 10),
+    date: $('#agDate').value || todayStr(),
     done: false
   };
 
