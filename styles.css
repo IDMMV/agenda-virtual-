@@ -691,9 +691,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   }
 }
 
-/* Mobile Bottom Nav adjusted for 6 items */
+/* Mobile Bottom Nav (hidden on desktop screens > 960px) */
 .bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 62px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  z-index: 70;
   grid-template-columns: repeat(6, 1fr) !important;
+  align-items: center;
+  padding: 4px 6px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
 }
 .bnav-btn {
   display: flex;
