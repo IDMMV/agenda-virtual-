@@ -1,74 +1,77 @@
 {
-  "name": "Mi Hogar al Día",
-  "short_name": "Mi Hogar",
-  "description": "Mi Hogar al Día PWA V5.9.3 con administración general y vista móvil corregida.",
+  "name": "Gestión Personal",
+  "short_name": "Gestión Personal",
+  "description": "Control de ingresos y gastos diarios, agenda virtual con recordatorios y métricas de disciplina personal.",
   "lang": "es-PE",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f7fb",
+  "background_color": "#090d16",
   "theme_color": "#2563eb",
   "categories": [
+    "finance",
     "productivity",
-    "lifestyle",
-    "utilities"
+    "lifestyle"
   ],
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/icon-192.svg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/icon-512.svg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-maskable-512.png",
+      "src": "icons/icon.svg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Tablero",
-      "short_name": "Tablero",
-      "url": "./?view=pendientes",
+      "name": "Finanzas Rápidas",
+      "short_name": "Finanzas",
+      "url": "./?view=finanzas",
       "icons": [
         {
-          "src": "icons/icon-192.png",
-          "sizes": "192x192"
+          "src": "icons/icon-192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
         }
       ]
     },
     {
-      "name": "Calendario",
-      "short_name": "Calendario",
-      "url": "./?view=calendario",
+      "name": "Mi Agenda Diaria",
+      "short_name": "Agenda",
+      "url": "./?view=agenda",
       "icons": [
         {
-          "src": "icons/icon-192.png",
-          "sizes": "192x192"
+          "src": "icons/icon-192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
         }
       ]
     },
     {
-      "name": "Documentos",
-      "short_name": "Documentos",
-      "url": "./?view=documentos",
+      "name": "Indicadores de Disciplina",
+      "short_name": "Disciplina",
+      "url": "./?view=indicadores",
       "icons": [
         {
-          "src": "icons/icon-192.png",
-          "sizes": "192x192"
+          "src": "icons/icon-192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
         }
       ]
     }
   ],
-  "id": "./?source=pwa-v5-8-1",
-  "version": "5.9.3"
+  "id": "gestion-personal-pwa-v6",
+  "version": "6.1.0"
 }

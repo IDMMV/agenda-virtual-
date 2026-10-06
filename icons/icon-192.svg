@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="gpBg192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1128"/>
+      <stop offset="60%" stop-color="#142850"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="gpGold192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="gpCyan192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="gpEmerald192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="192" height="192" rx="44" fill="url(#gpBg192)"/>
+  <rect x="3" y="3" width="186" height="186" rx="41" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+
+  <!-- Shield -->
+  <path d="M96 32 L150 54 V98 C150 135 96 162 96 162 C96 162 42 135 42 98 V54 Z" 
+        fill="rgba(15,23,42,0.85)" stroke="url(#gpCyan192)" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Growth Arrow -->
+  <path d="M62 126 L120 68" stroke="url(#gpEmerald192)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M100 68 H122 V90" fill="none" stroke="url(#gpEmerald192)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Monogram GP -->
+  <path d="M92 78 C70 78 60 92 60 108 C60 124 74 134 92 134 C108 134 116 126 118 114 H92" 
+        fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M92 78 V134 M92 78 H114 C128 78 134 86 134 96 C134 107 126 114 110 114 H92" 
+        fill="none" stroke="url(#gpGold192)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Flame top -->
+  <path d="M96 44 Q102 56 98 64 Q106 58 106 50 Q112 60 104 72 Q96 82 88 72 Q82 64 90 56 Q92 62 95 62 Q96 54 96 44 Z" 
+        fill="url(#gpGold192)"/>
+</svg>

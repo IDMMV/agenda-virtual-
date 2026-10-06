@@ -1,0 +1,8 @@
+{
+  "name": "Mi Hogar al Día",
+  "description": "Agenda y calendario móvil familiar para organizar tareas, gastos, recordatorios y momentos compartidos.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

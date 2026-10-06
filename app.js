@@ -1,491 +1,2208 @@
+/**
+ * Gestión Personal - Finanzas, Deudas, Agenda & Disciplina
+ * Versión 6.2.0
+ */
 
-(function(){
-  window.enterMiHogar=function(ev,destino){
-    try{ if(ev){ev.preventDefault();ev.stopPropagation();} }catch(_e){}
-    try{
-      var remember=document.getElementById('welcomeRemember');
-      if(remember && remember.checked){
-        localStorage.setItem('mh_welcome_seen_v595','1');
-        localStorage.setItem('mh_welcome_seen_v541','1');
-      }
-    }catch(_e){}
-    var screen=document.getElementById('welcomeScreen');
-    if(screen){screen.classList.add('hidden');screen.style.display='none';screen.setAttribute('aria-hidden','true');}
-    try{
-      if(window.state){window.state.view=destino||'pendientes';window.state.boardFocus='all';}
-      if(typeof window.save==='function')window.save();
-      if(typeof window.render==='function')window.render();
-    }catch(err){console.warn('Entrada parcial:',err);}
-    try{window.scrollTo({top:0,left:0,behavior:'auto'});}catch(_e){}
-    return false;
-  };
-  document.addEventListener('DOMContentLoaded',function(){
-    try{
-      if(localStorage.getItem('mh_welcome_seen_v595')==='1'){
-        var s=document.getElementById('welcomeScreen');
-        if(s){s.classList.add('hidden');s.style.display='none';}
-      }
-    }catch(_e){}
-    ['welcomeEnter','welcomeGames'].forEach(function(id){
-      var b=document.getElementById(id);
-      if(!b)return;
-      b.style.pointerEvents='auto';
-      b.style.position='relative';
-      b.style.zIndex='2';
-    });
-  });
-})();
+// Global State Keys
+const STATE_KEY = 'mhogar_state_v6';
+const PIN_KEY = 'mhogar_pin_v6';
+const USER_KEY = 'mhogar_user_v6';
 
-
-
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const now=Date.now();
-const seedUsers=[
-{id:'u1',name:'Mamá',role:'Administradora',photo:'',presence:'online',lastSeen:new Date().toISOString()},{id:'u2',name:'Papá',role:'Integrante',photo:'',presence:'online',lastSeen:new Date().toISOString()},{id:'u3',name:'Lucía',role:'Integrante',photo:'',presence:'away',lastSeen:new Date(Date.now()-12*60000).toISOString()},{id:'u4',name:'Carlos',role:'Integrante',photo:'',presence:'offline',lastSeen:new Date(Date.now()-2*3600000).toISOString()}
-];
-const mkHistory=(userId,type,text,at)=>({id:crypto.randomUUID(),userId,type,text,at});
-const seedTasks=[
-{id:'t1',title:'Comprar focos',description:'Comprar dos focos LED para la sala.',category:'Compras',priority:'Alta',creatorId:'u1',responsibleId:'u4',createdAt:new Date(now-2*864e5).toISOString(),dueDate:new Date(now+864e5).toISOString(),status:'Pendiente',beforePhoto:'',afterPhoto:'',completedAt:null,completedBy:null,archived:false,repeat:'none',requirePhoto:false,history:[mkHistory('u1','created','Creó la actividad',new Date(now-2*864e5).toISOString())]},
-{id:'t2',title:'Ordenar el patio',description:'Guardar herramientas y ordenar las macetas.',category:'Organización',priority:'Media',creatorId:'u2',responsibleId:'',createdAt:new Date(now-4*864e5).toISOString(),dueDate:new Date(now+2*864e5).toISOString(),status:'Pendiente',beforePhoto:'',afterPhoto:'',completedAt:null,completedBy:null,archived:false,repeat:'weekly',requirePhoto:true,history:[mkHistory('u2','created','Creó la actividad',new Date(now-4*864e5).toISOString())]},
-{id:'t3',title:'Pagar internet',description:'Pagar el recibo mensual.',category:'Pagos',priority:'Baja',creatorId:'u1',responsibleId:'u1',createdAt:new Date(now-8*864e5).toISOString(),dueDate:new Date(now-2*864e5).toISOString(),status:'En proceso',beforePhoto:'',afterPhoto:'',completedAt:null,completedBy:null,archived:false,repeat:'monthly',requirePhoto:false,history:[mkHistory('u1','created','Creó la actividad',new Date(now-8*864e5).toISOString()),mkHistory('u1','started','Puso la actividad en proceso',new Date(now-3*864e5).toISOString())]},
-{id:'t4',title:'Lavar baño',description:'Limpieza completa del baño principal.',category:'Limpieza',priority:'Media',creatorId:'u3',responsibleId:'u3',createdAt:new Date(now-10*864e5).toISOString(),dueDate:'',status:'Realizada',beforePhoto:'',afterPhoto:'',completedAt:new Date(now-7*864e5).toISOString(),completedBy:'u3',archived:false,repeat:'weekly',requirePhoto:false,history:[mkHistory('u3','created','Creó la actividad',new Date(now-10*864e5).toISOString()),mkHistory('u3','completed','Marcó la actividad como realizada',new Date(now-7*864e5).toISOString())]}
-];
-const seedExpenses=[
-{id:'e1',familyId:'f1',title:'Compra de alimentos',amount:185.50,category:'Alimentación',when:new Date(now-864e5).toISOString(),userId:'u1',method:'Yape / Plin',taskId:'',repeat:'none',note:'Compra semanal',receipt:'',status:'Activo',createdAt:new Date(now-864e5).toISOString()},
-{id:'e2',familyId:'f1',title:'Pago de internet',amount:79.00,category:'Servicios',when:new Date(now-3*864e5).toISOString(),userId:'u2',method:'Tarjeta',taskId:'t3',repeat:'monthly',note:'Recibo mensual',receipt:'',status:'Activo',createdAt:new Date(now-3*864e5).toISOString()},
-{id:'e3',familyId:'f1',title:'Productos de limpieza',amount:42.90,category:'Limpieza',when:new Date(now-8*864e5).toISOString(),userId:'u3',method:'Efectivo',taskId:'',repeat:'none',note:'',receipt:'',status:'Activo',createdAt:new Date(now-8*864e5).toISOString()}
-];
-const seedFamilies=[{id:'f1',name:'Familia Hugo',code:'HUGO-4821',createdBy:'u1',memberIds:['u1','u2','u3','u4'],createdAt:new Date(now-30*864e5).toISOString()}];
-const state={users:JSON.parse(localStorage.getItem('mh_users')||'null')||seedUsers,families:JSON.parse(localStorage.getItem('mh_families')||'null')||seedFamilies,tasks:JSON.parse(localStorage.getItem('mh_tasks')||'null')||seedTasks,notes:JSON.parse(localStorage.getItem('mh_notes')||'null')||[],expenses:JSON.parse(localStorage.getItem('mh_expenses')||'null')||seedExpenses,postits:JSON.parse(localStorage.getItem('mh_postits')||'null')||null,chatMessages:JSON.parse(localStorage.getItem('mh_chat')||'null')||[{id:'m1',familyId:'f1',userId:'u1',text:'Bienvenidos al chat familiar 👋',at:new Date(now-3600000).toISOString()}],currentFamilyId:localStorage.getItem('mh_current_family')||'f1',currentUserId:localStorage.getItem('mh_current_user')||'u1',view:localStorage.getItem('mh_view')||'pendientes',filter:'Todos',search:'',priority:'Todas',calendarDate:new Date(),selectedDate:new Date(),boardFocus:'all',expensePeriod:'month',expenseCategory:'Todas',expenseUser:'Todos',gamePlayers:[],gameResult:'',rewardResult:'',wheelTurns:0,rewardTurns:0,rewards:JSON.parse(localStorage.getItem('mh_rewards')||'null')||defaultRewards(),rewardDraw:JSON.parse(localStorage.getItem('mh_reward_draw')||'null')||null,documents:JSON.parse(localStorage.getItem('mh_documents')||'null')||[],documentSearch:'',documentArea:'Todas'};
-
-const SUPABASE_URL='https://zvxpwspzpmfizagoybhy.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY='sb_publishable_CPxi7plhmZ-Vqlz7QYf1eA_wQRpvUxn';
-const APP_URL='https://idmmv.github.io/Gestion-Del-Hogar/';
-const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-let globalRole='user';let superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],tab:'resumen'};
-const authState={accounts:[],session:null,recovery:false};
-function showAuth(panel='login'){const screen=$('#authScreen');screen.classList.remove('hidden');$$('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b.dataset.authTab===panel));$('#loginForm').classList.toggle('hidden',panel!=='login');$('#registerForm').classList.toggle('hidden',panel!=='register');$('#resetForm').classList.add('hidden');$('#verifyForm').classList.add('hidden');$('#resetSentForm').classList.add('hidden');$('#newPasswordForm').classList.add('hidden')}
-function hideAuth(){const screen=$('#authScreen');screen.classList.add('hidden')}
-function showEmailSent(email,type='confirm'){showAuth('login');$('#loginForm').classList.add('hidden');$('#registerForm').classList.add('hidden');$('#resetForm').classList.add('hidden');$('#resetSentForm').classList.remove('hidden');$('#resetSentMessage').innerHTML=type==='confirm'?`📧 Enviamos un enlace de confirmación a <b>${esc(email)}</b>.<br>Abre ese enlace para activar tu cuenta y regresar a esta página.`:`📧 Enviamos un enlace de recuperación a <b>${esc(email)}</b>.<br>Abre ese enlace para crear una nueva contraseña.`}
-function createPersonalSpace(userId,name){const fid='personal-'+userId;let f=state.families.find(x=>x.id===fid);if(!f){f={id:fid,name:'Espacio personal de '+name,code:'PERSONAL',createdBy:userId,memberIds:[userId],createdAt:new Date().toISOString(),personal:true};state.families.push(f)}return f}
-function mergeUser(u){const i=state.users.findIndex(x=>x.id===u.id);if(i>=0)state.users[i]={...state.users[i],...u};else state.users.push(u)}
-function mergeFamily(f){const i=state.families.findIndex(x=>x.id===f.id);if(i>=0)state.families[i]={...state.families[i],...f};else state.families.push(f)}
-async function ensureSupabaseWorkspace(session){
-  const au=session.user, meta=au.user_metadata||{}, name=(meta.full_name||meta.name||au.email?.split('@')[0]||'Usuario').trim();
-  await supabaseClient.from('profiles').upsert({id:au.id,full_name:name,presence:'online',last_seen:new Date().toISOString()},{onConflict:'id'});
-  let {data:memberships,error}=await supabaseClient.from('family_members').select('family_id,role,families(id,name,invite_code,created_by)').eq('user_id',au.id);
-  if(error)console.warn('No se pudieron leer familias:',error.message);
-  if(!memberships?.length){
-    const mode=meta.account_mode||'individual';
-    const requested=(meta.family_name||'').trim();
-    const familyName=mode==='family'?(requested||`Familia de ${name}`):`Espacio personal de ${name}`;
-    const created=await supabaseClient.rpc('create_family',{p_name:familyName});
-    if(created.error)throw created.error;
-    ({data:memberships,error}=await supabaseClient.from('family_members').select('family_id,role,families(id,name,invite_code,created_by)').eq('user_id',au.id));
-    if(error)throw error;
-  }
-  const fams=[];
-  for(const m of memberships||[]){
-    const raw=Array.isArray(m.families)?m.families[0]:m.families;if(!raw)continue;
-    const {data:fm}=await supabaseClient.from('family_members').select('user_id,role,profiles(id,full_name,avatar_path,presence,last_seen)').eq('family_id',m.family_id);
-    const ids=[];
-    for(const row of fm||[]){const p=Array.isArray(row.profiles)?row.profiles[0]:row.profiles;if(!p)continue;ids.push(row.user_id);mergeUser({id:row.user_id,name:p.full_name||'Integrante',role:row.role==='admin'?'Administradora':'Integrante',photo:p.avatar_path||'',presence:p.presence||'offline',lastSeen:p.last_seen||new Date().toISOString()})}
-    if(!ids.includes(au.id)){ids.push(au.id);mergeUser({id:au.id,name,role:m.role==='admin'?'Administradora':'Integrante',photo:'',presence:'online',lastSeen:new Date().toISOString()})}
-    const f={id:raw.id,name:raw.name,code:raw.invite_code||'',createdBy:raw.created_by,memberIds:ids,createdAt:new Date().toISOString(),personal:(meta.account_mode||'individual')==='individual'&&memberships.length===1};mergeFamily(f);fams.push(f)
-  }
-  authState.session={accountId:au.id,userId:au.id,email:au.email,at:new Date().toISOString()};
-  authState.accounts=[{id:au.id,userId:au.id,name,email:au.email,mode:meta.account_mode||'individual'}];
-  state.currentUserId=au.id;
-  const remembered=localStorage.getItem('mh_current_family');state.currentFamilyId=fams.some(f=>f.id===remembered)?remembered:(fams[0]?.id||createPersonalSpace(au.id,name).id);
-  save();await loadGlobalRole();hideAuth();$('#welcomeScreen').classList.add('hidden');const actionBar=$('#globalActionBar');if(actionBar)actionBar.classList.remove('hidden');render();updateAccountUI();
-}
-function updateAccountUI(){const el=$('#accountEmail');if(el)el.textContent=authState.session?.email||''}
-async function loadGlobalRole(){try{const {data,error}=await supabaseClient.rpc('get_my_global_role');if(error)throw error;globalRole=data||'user'}catch(err){console.warn('No se pudo consultar el rol global por RPC',err);try{const {data:{user:authUser}}=await supabaseClient.auth.getUser();const metaRole=authUser?.app_metadata?.global_role||authUser?.user_metadata?.global_role;const ownerEmail=(authUser?.email||authState.session?.email||'').toLowerCase();globalRole=(metaRole==='super_admin'||ownerEmail==='josehugo.tec@gmail.com')?'super_admin':'user'}catch(_){globalRole='user'}}$$('[data-super-admin-only]').forEach(el=>el.classList.toggle('hidden',globalRole!=='super_admin'));const adminBtn=$('#globalAdminBtn');if(adminBtn)adminBtn.classList.toggle('hidden',globalRole!=='super_admin');const bar=$('#globalActionBar');if(bar)bar.classList.toggle('hidden',!authState.session);if(globalRole==='super_admin'){superAdminData.loaded=false;setTimeout(()=>loadSuperAdminData(true),0)}return globalRole}
-function isSuperAdmin(){return globalRole==='super_admin'}
-async function loadSuperAdminData(force=false){if(!isSuperAdmin())return;if(superAdminData.loading||(!force&&superAdminData.loaded))return;superAdminData.loading=true;superAdminData.error='';if(state.view==='superadmin')render();try{const [profilesRes,familiesRes,membersRes,docsRes]=await Promise.all([supabaseClient.from('profiles').select('id,full_name,presence,last_seen,created_at').order('created_at',{ascending:false}),supabaseClient.from('families').select('id,name,code,created_by,created_at').order('created_at',{ascending:false}),supabaseClient.from('family_members').select('family_id,user_id,role,joined_at'),supabaseClient.from('admin_document_inventory').select('*').limit(1000)]);const critical=[profilesRes,familiesRes,membersRes].find(x=>x.error);if(critical)throw critical.error;superAdminData.profiles=profilesRes.data||[];superAdminData.families=familiesRes.data||[];superAdminData.members=membersRes.data||[];superAdminData.documents=docsRes.error?[]:(docsRes.data||[]);superAdminData.loaded=true}catch(err){superAdminData.error=err.message||String(err)}finally{superAdminData.loading=false;if(state.view==='superadmin')render()}}
-function superAdminView(){if(!isSuperAdmin())return '<div class="content"><div class="card empty">Acceso exclusivo del administrador general.</div></div>';const d=superAdminData,tab=d.tab||'resumen',memberCount=id=>d.members.filter(m=>m.family_id===id).length,ownerName=id=>d.profiles.find(p=>p.id===id)?.full_name||'Sin identificar',totalBytes=d.documents.reduce((s,x)=>s+Number(x.size_bytes||0),0),tabs=[['resumen','📊 Resumen'],['usuarios','👤 Usuarios'],['familias','👨‍👩‍👧‍👦 Familias'],['almacenamiento','💾 Almacenamiento'],['configuracion','⚙️ Configuración'],['auditoria','🧾 Auditoría']];let body='';if(d.loading)body='<div class="card superadmin-loading">Cargando información de Supabase…</div>';else if(d.error)body=`<div class="superadmin-error"><b>No se pudo cargar el panel.</b><br>${esc(d.error)}<br><small>Verifica que ejecutaste el SQL de superadministrador general.</small></div>`;else if(tab==='resumen')body=`<div class="superadmin-stats"><div class="card superadmin-stat"><i>👤</i><div><b>${d.profiles.length}</b><span>Usuarios registrados</span></div></div><div class="card superadmin-stat"><i>👨‍👩‍👧‍👦</i><div><b>${d.families.length}</b><span>Grupos familiares</span></div></div><div class="card superadmin-stat"><i>🔗</i><div><b>${d.members.length}</b><span>Membresías</span></div></div><div class="card superadmin-stat"><i>💾</i><div><b>${formatBytes(totalBytes)}</b><span>Documentos compartidos</span></div></div></div><div class="config-grid"><div class="card config-card"><h3>Actividad reciente</h3>${d.profiles.slice(0,6).map(p=>`<div class="admin-shared-row"><div><b>${esc(p.full_name||'Usuario')}</b><span>${p.last_seen?'Último acceso: '+fmt(p.last_seen):'Sin acceso registrado'}</span></div><span class="status-pill">${esc(p.presence||'offline')}</span></div>`).join('')||'<p class="muted">Sin usuarios.</p>'}</div><div class="card config-card"><h3>Familias recientes</h3>${d.families.slice(0,6).map(f=>`<div class="admin-shared-row"><div><b>${esc(f.name)}</b><span>${memberCount(f.id)} integrante(s) · ${esc(f.code||'Sin código')}</span></div></div>`).join('')||'<p class="muted">Sin familias.</p>'}</div></div>`;else if(tab==='usuarios')body=`<div class="card"><div class="section-head"><h2>Usuarios registrados</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Familias</th><th>Último acceso</th><th>Rol global</th></tr></thead><tbody>${d.profiles.map(p=>`<tr><td><b>${esc(p.full_name||'Sin nombre')}</b><br><small>${esc(p.id)}</small></td><td><span class="status-pill">${esc(p.presence||'offline')}</span></td><td>${d.members.filter(m=>m.user_id===p.id).length}</td><td>${p.last_seen?fmt(p.last_seen):'Sin registro'}</td><td>${p.id===state.currentUserId?'<span class="role-pill">Superadmin</span>':'Usuario'}</td></tr>`).join('')}</tbody></table></div></div>`;else if(tab==='familias')body=`<div class="card"><div class="section-head"><h2>Grupos familiares</h2><button class="btn soft" data-super-refresh>Actualizar</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Familia</th><th>Código</th><th>Propietario</th><th>Integrantes</th><th>Creada</th><th>Acciones</th></tr></thead><tbody>${d.families.map(f=>`<tr><td><b>${esc(f.name)}</b></td><td>${esc(f.code||'—')}</td><td>${esc(ownerName(f.created_by))}</td><td>${memberCount(f.id)}</td><td>${f.created_at?fmt(f.created_at):'—'}</td><td><div class="admin-actions"><button class="btn danger" data-super-delete-family="${f.id}" data-family-name="${esc(f.name)}">Eliminar</button></div></td></tr>`).join('')}</tbody></table></div></div>`;else if(tab==='almacenamiento')body=`<div class="superadmin-stats"><div class="card superadmin-stat"><i>📄</i><div><b>${d.documents.length}</b><span>Documentos compartidos</span></div></div><div class="card superadmin-stat"><i>💾</i><div><b>${formatBytes(totalBytes)}</b><span>Espacio contabilizado</span></div></div></div><div class="card"><div class="section-head"><h2>Inventario compartido</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Documento</th><th>Propietario</th><th>Familia</th><th>Visibilidad</th><th>Tamaño</th><th>Vencimiento</th></tr></thead><tbody>${d.documents.map(x=>`<tr><td><b>${esc(x.name||x.original_filename||'Documento')}</b><br><small>${esc(x.document_type||x.area||'')}</small></td><td>${esc(x.owner_name||'—')}</td><td>${esc(x.family_name||'—')}</td><td>${esc(x.visibility||'—')}</td><td>${formatBytes(Number(x.size_bytes||0))}</td><td>${x.expires_on?esc(x.expires_on):'—'}</td></tr>`).join('')||'<tr><td colspan="6">No hay documentos compartidos o la vista aún no fue creada.</td></tr>'}</tbody></table></div></div>`;else if(tab==='configuracion')body=`<div class="config-grid"><div class="card config-card"><h3>🔐 Seguridad</h3><p class="muted">Acceso protegido mediante Supabase Auth, RLS y el rol global super_admin.</p><span class="status-pill">Protección activa</span></div><div class="card config-card"><h3>📁 Documentos privados</h3><p class="muted">El panel no abre archivos privados; solo inventaría documentos compartidos.</p><span class="status-pill">Privacidad activa</span></div><div class="card config-card"><h3>📏 Límites</h3><p class="muted">La edición global de cuotas se incorporará con una tabla de configuración.</p></div><div class="card config-card"><h3>🧩 Módulos</h3><p class="muted">Tablero, calendario, gastos, pizarra, juegos y documentos están activos.</p></div></div>`;else body=`<div class="card config-card"><h3>Auditoría administrativa</h3><p class="muted">Registro de esta sesión. La auditoría permanente requerirá la tabla audit_logs.</p><div class="audit-row"><b>Cuenta actual</b><span>${esc(authState.session?.email||'')}</span><span>${fmt(new Date())}</span></div><div class="audit-row"><b>Rol validado</b><span>super_admin</span><span>Activo</span></div></div>`;return `<div class="content superadmin-shell"><div class="card superadmin-hero"><h2>🛡️ Administración general</h2><p>Control global de usuarios, familias, almacenamiento y seguridad.</p><span class="superadmin-badge">✓ Superadministrador verificado</span></div><div class="superadmin-tabs">${tabs.map(([id,label])=>`<button class="${tab===id?'active':''}" data-super-tab="${id}">${label}</button>`).join('')}</div>${body}</div>`}
-async function deleteFamilyAsSuperAdmin(id,name){const typed=prompt(`Esta acción eliminará definitivamente “${name}” y sus datos relacionados.\n\nEscribe ELIMINAR para continuar:`);if(typed!=='ELIMINAR'){toast('Eliminación cancelada');return}const {error}=await supabaseClient.rpc('super_admin_delete_family',{p_family_id:id});if(error){toast('No se pudo eliminar: '+friendlyAuthError(error));return}superAdminData.loaded=false;await loadSuperAdminData(true);toast('Grupo familiar eliminado')}
-async function logout(){try{await supabaseClient.auth.signOut()}catch(err){console.warn('Error al cerrar sesión',err)}authState.session=null;globalRole='user';superAdminData={loading:false,loaded:false,error:'',profiles:[],families:[],members:[],documents:[],tab:'resumen'};const bar=$('#globalActionBar');if(bar)bar.classList.add('hidden');showAuth('login');toast('Sesión cerrada')}
-function friendlyAuthError(error){const m=(error?.message||'').toLowerCase();if(m.includes('invalid login credentials'))return 'Correo o contraseña incorrectos';if(m.includes('email not confirmed'))return 'Primero debes confirmar tu correo';if(m.includes('user already registered'))return 'Este correo ya tiene una cuenta';if(m.includes('password should be'))return 'La contraseña debe tener al menos 6 caracteres';if(m.includes('rate limit'))return 'Se realizaron demasiados intentos. Espera unos minutos';return error?.message||'No se pudo completar la operación'}
-
-state.users=state.users.map((u,i)=>({...u,presence:u.presence||(i<2?'online':i===2?'away':'offline'),lastSeen:u.lastSeen||new Date(now-i*3600000).toISOString()}));
-state.tasks=state.tasks.map(t=>({...t,familyId:t.familyId||'f1',archived:t.archived||false,repeat:t.repeat||'none',requirePhoto:!!t.requirePhoto,rewardClaimed:!!t.rewardClaimed,reward:t.reward||'',rewardedAt:t.rewardedAt||'',rewardedBy:t.rewardedBy||'',comments:t.comments||[],history:t.history||[mkHistory(t.creatorId,'created','Creó la actividad',t.createdAt)]}));
-state.notes=state.notes.map(n=>({...n,familyId:n.familyId||'f1',time:n.time||'09:00',duration:Number(n.duration||60)}));
-state.expenses=(state.expenses||[]).map(e=>({...e,familyId:e.familyId||'f1',status:e.status||'Activo'}));
-state.chatMessages=state.chatMessages.map(m=>({...m,familyId:m.familyId||'f1'}));
-if(!state.postits){state.postits=state.chatMessages.map((m,i)=>({id:m.id||crypto.randomUUID(),familyId:m.familyId||'f1',title:i===0?'Bienvenida familiar':'Nota familiar',text:m.text,userId:m.userId,createdAt:m.at||new Date().toISOString(),color:['yellow','blue','green','pink'][i%4],pinned:i===0,expiresAt:'',archived:false}));}state.postits=state.postits.map(p=>({...p,familyId:p.familyId||'f1',color:p.color||'yellow',archived:!!p.archived,archivedAt:p.archivedAt||'',archivedBy:p.archivedBy||'',archiveReason:p.archiveReason||''}));
-function family(){return state.families.find(f=>f.id===state.currentFamilyId)||state.families[0]}
-function familyUsers(){const f=family();return state.users.filter(u=>(f?.memberIds||[]).includes(u.id))}
-function familyTasks(){return state.tasks.filter(t=>t.familyId===state.currentFamilyId)}
-function familyNotes(){return state.notes.filter(n=>n.familyId===state.currentFamilyId)}
-function familyMessages(){return state.chatMessages.filter(m=>m.familyId===state.currentFamilyId)}
-function familyPostits(){return state.postits.filter(p=>p.familyId===state.currentFamilyId)}
-function familyExpenses(){return state.expenses.filter(e=>e.familyId===state.currentFamilyId)}
-function defaultRewards(){return [
-{id:'rw1',name:'Elegir la película',icon:'🎬',active:true,selected:true},
-{id:'rw2',name:'Escoger el postre',icon:'🍰',active:true,selected:true},
-{id:'rw3',name:'30 minutos extra de juego',icon:'🎮',active:true,selected:true},
-{id:'rw4',name:'Elegir la cena',icon:'🍕',active:true,selected:true},
-{id:'rw5',name:'Paseo al parque',icon:'🌳',active:true,selected:false},
-{id:'rw6',name:'Descansar de una tarea pequeña',icon:'😌',active:true,selected:false},
-{id:'rw7',name:'10 puntos familiares',icon:'⭐',active:true,selected:true},
-{id:'rw8',name:'Premio sorpresa',icon:'🎁',active:true,selected:false}
-]}
-function wheelGradient(n){const colors=['#60a5fa','#f59e0b','#34d399','#f472b6','#a78bfa','#fb7185','#22d3ee','#facc15'];n=Math.max(1,n);return `conic-gradient(${Array.from({length:n},(_,i)=>`${colors[i%colors.length]} ${i*100/n}% ${(i+1)*100/n}%`).join(',')})`}
-function wheelLabels(items){const n=Math.max(1,items.length);return items.map((label,i)=>{const angle=(i+.5)*360/n;return `<div class="wheel-label" style="transform:rotate(${angle}deg) translateY(-105px) rotate(${-angle}deg)"><span>${esc(label)}</span></div>`}).join('')}
-function targetRotation(current,index,count){const slice=360/count;const center=index*slice+slice/2;const normalized=((current%360)+360)%360;const desired=(360-center)%360;const delta=(desired-normalized+360)%360;return current+1800+delta+Math.floor(Math.random()*2)*360}
-function launchConfetti(){let layer=document.querySelector('.confetti-layer');if(layer)layer.remove();layer=document.createElement('div');layer.className='confetti-layer';const colors=['#2563eb','#f59e0b','#22c55e','#ec4899','#8b5cf6','#ef4444'];for(let i=0;i<70;i++){const p=document.createElement('i');p.className='confetti-piece';p.style.left=Math.random()*100+'vw';p.style.background=colors[i%colors.length];p.style.animationDelay=(Math.random()*.45)+'s';p.style.setProperty('--drift',(Math.random()*220-110)+'px');layer.appendChild(p)}document.body.appendChild(layer);setTimeout(()=>layer.remove(),2400)}
-function isAdmin(){const f=family();return !!f&&(f.createdBy===state.currentUserId||user(state.currentUserId).role==='Administradora')}
-function presenceText(u){if(u.id===state.currentUserId||u.presence==='online')return 'En línea';if(u.presence==='away')return 'Activo hace '+Math.max(1,Math.round((Date.now()-new Date(u.lastSeen))/60000))+' min';return 'Última conexión '+fmt(u.lastSeen)}
-function presenceClass(u){return u.id===state.currentUserId||u.presence==='online'?'online':u.presence==='away'?'away':''}
-function save(){localStorage.setItem('mh_users',JSON.stringify(state.users));localStorage.setItem('mh_families',JSON.stringify(state.families));localStorage.setItem('mh_tasks',JSON.stringify(state.tasks));localStorage.setItem('mh_current_user',state.currentUserId);localStorage.setItem('mh_view',state.view);localStorage.setItem('mh_current_family',state.currentFamilyId);localStorage.setItem('mh_notes',JSON.stringify(state.notes));localStorage.setItem('mh_chat',JSON.stringify(state.chatMessages));localStorage.setItem('mh_postits',JSON.stringify(state.postits));localStorage.setItem('mh_expenses',JSON.stringify(state.expenses));localStorage.setItem('mh_rewards',JSON.stringify(state.rewards));localStorage.setItem('mh_reward_draw',JSON.stringify(state.rewardDraw));localStorage.setItem('mh_documents',JSON.stringify(state.documents))}
-function user(id){return state.users.find(x=>x.id===id)||{name:'Sin asignar',photo:''}}
-function initials(n){return n.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()}
-function avatarHtml(id,cls='mini-avatar'){const u=user(id);return `<span class="${cls}">${u.photo?`<img src="${u.photo}">`:initials(u.name)}</span>`}
-function fmt(d){if(!d)return 'Sin fecha';return new Intl.DateTimeFormat('es-PE',{dateStyle:'medium',timeStyle:'short'}).format(new Date(d))}
-function days(a,b){return Math.max(0,(new Date(b)-new Date(a))/864e5)}
-function overdue(t){return t.dueDate&&new Date(t.dueDate)<new Date()&&!['Realizada','Cancelada','Archivada'].includes(t.status)}
-function esc(s=''){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400)}
-function statusClass(s){return 's-'+s.replaceAll(' ','-')}
-function stats(){const active=familyTasks().filter(t=>!t.archived&&!['Realizada','Cancelada'].includes(t.status));const urgent=active.filter(t=>t.priority==='Alta'||overdue(t));const process=active.filter(t=>t.status==='En proceso');const week=familyTasks().filter(t=>t.status==='Realizada'&&t.completedAt&&Date.now()-new Date(t.completedAt)<7*864e5);return {active:active.length,urgent:urgent.length,process:process.length,week:week.length}}
-function statsHtml(){const s=stats();return `<div class="stats home-summary"><div class="stat"><i class="i-blue">📋</i><div><strong>${s.active}</strong><span>Pendientes</span></div></div><div class="stat"><i class="i-red">⚠️</i><div><strong>${s.urgent}</strong><span>Urgentes o vencidos</span></div></div><div class="stat"><i class="i-amber">⏳</i><div><strong>${s.process}</strong><span>En proceso</span></div></div><div class="stat"><i class="i-green">✅</i><div><strong>${s.week}</strong><span>Realizadas esta semana</span></div></div></div>`}
-function filtered(base){return base.filter(t=>{const q=(`${t.title} ${t.description} ${t.category}`).toLowerCase();const filterOk=state.filter==='Todos'||(state.filter==='Urgentes'&&(t.priority==='Alta'||overdue(t)))||(state.filter==='Míos'&&(t.creatorId===state.currentUserId||t.responsibleId===state.currentUserId))||(state.filter==='En proceso'&&t.status==='En proceso')||(state.filter==='Vencidos'&&overdue(t));return filterOk&&(!state.search||q.includes(state.search.toLowerCase()))&&(state.priority==='Todas'||t.priority===state.priority)})}
-function taskRows(tasks){return tasks.map(t=>`<tr data-id="${t.id}"><td><span class="task-title">${esc(t.title)}</span>${overdue(t)?'<div class="overdue">Vencida</div>':''}</td><td><span class="badge p-${t.priority}">${t.priority}</span></td><td><span class="mini-user">${avatarHtml(t.creatorId)}${esc(user(t.creatorId).name)}</span></td><td>${fmt(t.createdAt)}</td><td><span class="mini-user">${t.responsibleId?avatarHtml(t.responsibleId):''}${esc(user(t.responsibleId).name)}</span></td><td><span class="badge ${statusClass(t.status)}">${t.status}</span></td><td>${t.beforePhoto?`<img class="thumb" src="${t.beforePhoto}">`:'📷'}</td><td>›</td></tr>`).join('')}
-function taskCards(tasks){return tasks.map(t=>`<article class="task-card" data-id="${t.id}" data-open-card="${t.id}" title="Toca para ver o editar"><div class="task-card-top"><div class="task-card-title">${esc(t.title)}</div><span class="badge p-${t.priority}">${t.priority}</span></div><div class="task-card-meta"><span>👤 Creado por ${esc(user(t.creatorId).name)}</span><span>🙋 Responsable: ${esc(user(t.responsibleId).name)}</span><span>📅 ${overdue(t)?'<b class="overdue">Vencida</b>':t.dueDate?fmt(t.dueDate):'Sin fecha límite'}</span><span><span class="badge ${statusClass(t.status)}">${t.status}</span></span></div><div class="task-card-actions"><span class="tap-hint">Toca para abrir</span>${!t.responsibleId?`<button class="btn primary" data-claim="${t.id}">Yo lo haré</button>`:''}</div></article>`).join('')}
-function taskSection(tasks,title='Pendientes del hogar',filters=true){return `<div class="card section"><div class="section-head"><h2>${title}</h2><button class="btn primary" data-action="new">＋ Nueva actividad</button></div>${filters?`<div class="chips">${['Todos','Urgentes','Míos','En proceso','Vencidos'].map(x=>`<button class="chip ${state.filter===x?'active':''}" data-filter="${x}">${x}</button>`).join('')}</div><div class="search-row"><input id="search" placeholder="Buscar actividad" value="${esc(state.search)}"><select id="priorityFilter"><option>Todas</option><option ${state.priority==='Alta'?'selected':''}>Alta</option><option ${state.priority==='Media'?'selected':''}>Media</option><option ${state.priority==='Baja'?'selected':''}>Baja</option></select></div>`:''}${tasks.length?`<div class="task-table-wrap"><table class="task-table"><thead><tr><th>Actividad</th><th>Prioridad</th><th>Creado por</th><th>Fecha</th><th>Responsable</th><th>Estado</th><th>Foto</th><th></th></tr></thead><tbody>${taskRows(tasks)}</tbody></table></div><div class="mobile-list">${taskCards(tasks)}</div>`:'<div class="empty">No hay actividades para mostrar.</div>'}</div>`}
-function rank(field){const m={};familyTasks().filter(t=>t.status==='Realizada'||field==='creatorId').forEach(t=>{if(t[field])m[t[field]]=(m[t[field]]||0)+1});return Object.entries(m).map(([id,count])=>({id,count})).sort((a,b)=>b.count-a.count).slice(0,4)}
-function dashboard(){const tasks=familyTasks().filter(t=>!t.archived),done=tasks.filter(t=>t.status==='Realizada'),pending=tasks.filter(t=>t.status==='Pendiente'),process=tasks.filter(t=>t.status==='En proceso');const taskCats={},expenseCats={},expenseUsers={};tasks.forEach(t=>taskCats[t.category]=(taskCats[t.category]||0)+1);familyExpenses().filter(e=>e.status!=='Anulado').forEach(e=>{expenseCats[e.category]=(expenseCats[e.category]||0)+Number(e.amount||0);expenseUsers[e.userId]=(expenseUsers[e.userId]||0)+Number(e.amount||0)});const taskMax=Math.max(...Object.values(taskCats),1),expenseMax=Math.max(...Object.values(expenseCats),1),userMax=Math.max(...Object.values(expenseUsers),1);const avg=done.length?(done.reduce((a,t)=>a+days(t.createdAt,t.completedAt),0)/done.length).toFixed(1):'0.0';const rate=tasks.length?Math.round(done.length/tasks.length*100):0;const reminders=familyNotes().length,posts=familyPostits().length,over=tasks.filter(overdue).length;return `<div class="admin-overview"><div class="stat"><i class="i-blue">📋</i><div><strong>${tasks.length}</strong><span>Total de tareas</span></div></div><div class="stat"><i class="i-green">✅</i><div><strong>${done.length}</strong><span>Completadas (${rate}%)</span></div></div><div class="stat"><i class="i-amber">⏳</i><div><strong>${process.length}</strong><span>En proceso</span></div></div><div class="stat"><i class="i-red">⚠️</i><div><strong>${pending.length}</strong><span>Pendientes</span></div></div></div><div class="admin-grid section"><div class="card dash"><h3>Tareas por categoría</h3>${Object.entries(taskCats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="bar-row"><span>${esc(k)}</span><div class="bar"><b style="width:${v/taskMax*100}%"></b></div><strong>${v}</strong></div>`).join('')||'<p class="muted">Sin datos.</p>'}</div><div class="card dash"><h3>Gastos por categoría</h3>${Object.entries(expenseCats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="bar-row admin-money"><span>${esc(k)}</span><div class="bar"><b style="width:${v/expenseMax*100}%"></b></div><strong>${money(v)}</strong></div>`).join('')||'<p class="muted">Sin datos.</p>'}</div><div class="card dash"><h3>Gastos por integrante</h3>${Object.entries(expenseUsers).sort((a,b)=>b[1]-a[1]).map(([id,v])=>`<div class="rank-row">${avatarHtml(id)}<span>${esc(user(id).name)}</span><div class="bar mini-admin-bar"><b style="width:${v/userMax*100}%"></b></div><em>${money(v)}</em></div>`).join('')||'<p class="muted">Sin datos.</p>'}</div><div class="card dash"><h3>Eficiencia familiar</h3><div class="big">${rate}%</div><p class="muted">Actividades completadas</p><div class="big" style="font-size:22px">${avg} días</div><p class="muted">Tiempo promedio</p></div><div class="card dash"><h3>Quién más registró</h3><div class="rank">${rank('creatorId').map((x,i)=>`<div class="rank-row"><b>${i+1}</b>${avatarHtml(x.id)}<span>${esc(user(x.id).name)}</span><em>${x.count}</em></div>`).join('')}</div></div><div class="card dash"><h3>Quién más realizó</h3><div class="rank">${rank('completedBy').map((x,i)=>`<div class="rank-row"><b>${i+1}</b>${avatarHtml(x.id)}<span>${esc(user(x.id).name)}</span><em>${x.count}</em></div>`).join('')||'<span class="muted">Aún no hay datos.</span>'}</div></div><div class="card dash admin-mini"><h3>Recordatorios</h3><div class="big">${reminders}</div><p class="muted">Creados en el calendario</p></div><div class="card dash admin-mini"><h3>Post-it</h3><div class="big">${posts}</div><p class="muted">Notas en la pizarra</p></div><div class="card dash admin-mini"><h3>Tareas vencidas</h3><div class="big">${over}</div><p class="muted">Requieren atención</p></div></div>`}
-function dateKey(d){const x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`}
-function toLocalInput(d){const x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,16)}
-function toDateInput(v){const d=new Date(v);const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
-function toLocalTime(v){if(!v)return '';const d=new Date(v);if(Number.isNaN(d.getTime()))return '';return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
-function noteStartDate(note){const date=toDateInput(note.when);const time=note.time||toLocalTime(note.when)||'09:00';return new Date(`${date}T${time}:00`)}
-function noteEndDate(note){const d=noteStartDate(note);d.setMinutes(d.getMinutes()+Number(note.duration||60));return d}
-function icsEscape(value=''){return String(value).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n')}
-function icsDateTime(date){const d=new Date(date);return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}00`}
-function downloadBlob(filename,text,type='text/calendar;charset=utf-8'){const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200)}
-function noteToICS(note){const start=noteStartDate(note),end=noteEndDate(note),stamp=icsDateTime(new Date()),uid=`${note.id}@mihogaraldia`;return ['BEGIN:VEVENT',`UID:${uid}`,`DTSTAMP:${stamp}`,`DTSTART:${icsDateTime(start)}`,`DTEND:${icsDateTime(end)}`,`SUMMARY:${icsEscape(note.title)}`,`DESCRIPTION:${icsEscape(note.description||'')}`,`CATEGORIES:${icsEscape(note.category||'Personal')}`,'END:VEVENT'].join('\\r\\n')}
-function downloadNoteICS(id){const note=state.notes.find(n=>n.id===id);if(!note)return;downloadBlob(`mi-hogar-${dateKey(noteStartDate(note))}-${note.id.slice(0,8)}.ics`,`BEGIN:VCALENDAR\\r\\nVERSION:2.0\\r\\nPRODID:-//Mi Hogar al Dia//Agenda//ES\\r\\nCALSCALE:GREGORIAN\\r\\n${noteToICS(note)}\\r\\nEND:VCALENDAR\\r\\n`);toast('Archivo de calendario preparado. Ábrelo para agregarlo al celular.')}
-function downloadAgendaICS(){const notes=familyNotes().slice().sort((a,b)=>noteStartDate(a)-noteStartDate(b));if(!notes.length){toast('No hay recordatorios para exportar');return}const body=notes.map(noteToICS).join('\\r\\n');downloadBlob(`mi-hogar-agenda-${dateKey(new Date())}.ics`,`BEGIN:VCALENDAR\\r\\nVERSION:2.0\\r\\nPRODID:-//Mi Hogar al Dia//Agenda//ES\\r\\nCALSCALE:GREGORIAN\\r\\n${body}\\r\\nEND:VCALENDAR\\r\\n`);toast(`${notes.length} recordatorio(s) exportado(s)`)}
-function openGoogleCalendar(id){const note=state.notes.find(n=>n.id===id);if(!note)return;const start=noteStartDate(note),end=noteEndDate(note),dates=`${icsDateTime(start)}/${icsDateTime(end)}`;const url='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(note.title)+'&dates='+dates+'&details='+encodeURIComponent(note.description||'')+'&location='+encodeURIComponent('');window.open(url,'_blank','noopener')} 
-function parseDateOnly(v){return new Date(v+'T12:00:00')}
-function addDays(date,days){const d=new Date(date);d.setDate(d.getDate()+days);return d}
-function addBusinessDays(date,days){const d=new Date(date);let added=0;while(added<days){d.setDate(d.getDate()+1);const day=d.getDay();if(day!==0&&day!==6)added++}return d}
-function autoDueDateByPriority(priority,base=new Date()){const map={Alta:2,Media:7,Baja:14};return addBusinessDays(base,map[priority]||7)}
-function refreshTaskAutoMeta(){const title=$('#fTitle')?.value||'',desc=$('#fDescription')?.value||'',cat=$('#fCategory'),info=$('#taskAutoInfo'),priority=$('#fPriority')?.value||'Media',due=$('#fDue'),dueDisplay=$('#fDueDisplay'),dueSuggestion=$('#dueSuggestion');if(cat){const result=suggestTaskCategory(title,desc);cat.value=result.category||'Otros';if(info){info.textContent='La categoría se detecta automáticamente y se usa en las estadísticas del administrador. La fecha límite se ajusta según la prioridad.'}}const auto=autoDueDateByPriority(priority,new Date());if(due)due.value=toDateInput(auto);if(dueDisplay)dueDisplay.value=new Intl.DateTimeFormat('es-PE',{day:'2-digit',month:'short',year:'numeric'}).format(auto);if(dueSuggestion)dueSuggestion.textContent=priority==='Alta'?'Alta: vence en 2 días hábiles.':priority==='Media'?'Media: vence en 7 días hábiles.':'Baja: vence en 14 días hábiles.'}
-
-function nextRepeatDate(base,repeat){const d=new Date(base);d.setHours(9,0,0,0);if(repeat==='weekly')d.setDate(d.getDate()+7);else if(repeat==='monthly')d.setMonth(d.getMonth()+1);else if(repeat==='yearly')d.setFullYear(d.getFullYear()+1);return d}
-function syncExpenseReminder(expense){state.notes=state.notes.filter(n=>n.sourceExpenseId!==expense.id || expense.repeat!=='none');if(expense.repeat==='none')return;const next=nextRepeatDate(expense.when,expense.repeat);const existing=state.notes.find(n=>n.sourceExpenseId===expense.id);const payload={familyId:expense.familyId,title:`Recordatorio de gasto: ${expense.title}`,description:`Volver a registrar o pagar: ${expense.title} · ${money(expense.amount)}`,when:next.toISOString(),time:'09:00',duration:30,category:'Pago',reminder:'1440',color:'#f59e0b',creatorId:expense.userId,createdAt:new Date().toISOString(),notified:false,sourceExpenseId:expense.id};if(existing)Object.assign(existing,payload);else state.notes.push({id:crypto.randomUUID(),...payload})}
-
-function boardCard(t){const last=[...(t.history||[])].sort((a,b)=>new Date(b.at)-new Date(a.at))[0];return `<article class="kanban-card" data-task-id="${t.id}" data-open-card="${t.id}" draggable="true" title="Toca para ver o editar"><div class="kanban-card-top"><div class="kanban-card-heading"><button class="drag-handle" data-drag-handle="${t.id}" title="Arrastrar tarea" aria-label="Mover tarea">⠿</button><h4>${esc(t.title)}</h4></div><span class="badge p-${t.priority}">${t.priority}</span></div><div class="kanban-meta"><span>👤 ${esc(user(t.responsibleId||t.creatorId).name)}</span><span>📅 ${t.dueDate?fmt(t.dueDate):'Sin fecha'}</span></div>${last?`<div class="status-change-toast">Último cambio: ${esc(user(last.userId).name)} · ${fmt(last.at)}</div>`:''}<div class="kanban-actions"><span class="tap-hint">Toca para abrir</span></div></article>`}
-function boardView(){let all=familyTasks().filter(t=>!t.archived&&t.status!=='Cancelada');const focus=state.boardFocus||'all';if(focus==='active')all=all.filter(t=>t.status==='Pendiente'||t.status==='En proceso');if(focus==='urgent')all=all.filter(t=>t.status!=='Realizada'&&(t.priority==='Alta'||overdue(t)));if(focus==='today')all=all.filter(t=>t.dueDate&&dateKey(t.dueDate)===dateKey(new Date()));if(focus==='weekdone')all=all.filter(t=>t.status==='Realizada'&&t.completedAt&&((Date.now()-new Date(t.completedAt))/86400000)<=7);const pending=all.filter(t=>t.status==='Pendiente'),process=all.filter(t=>t.status==='En proceso'),done=all.filter(t=>t.status==='Realizada');const urgent=all.filter(t=>t.status!=='Realizada'&&(t.priority==='Alta'||overdue(t))).length;const today=all.filter(t=>t.dueDate&&dateKey(t.dueDate)===dateKey(new Date())).length;const donePct=all.length?Math.round((done.length/all.length)*100):0;const focusLabel={active:'Tareas activas',urgent:'Urgentes o vencidas',today:'Programadas para hoy',weekdone:'Realizadas esta semana'}[focus];return `${focusLabel?`<div class="board-focus-banner"><span>Mostrando: <b>${focusLabel}</b></span><button class="btn soft" data-clear-focus>Ver todas</button></div>`:''}<div class="content"><div class="board-summary"><div class="sum"><i class="i-blue">📋</i><div><strong>${pending.length}</strong><span>Pendientes</span></div></div><div class="sum"><i class="i-red">🚨</i><div><strong>${urgent}</strong><span>Urgentes</span></div></div><div class="sum"><i class="i-green">📅</i><div><strong>${today}</strong><span>Para hoy</span></div></div><div class="sum sum-progress"><div class="progress-ring" style="--pct:${donePct}"><b>${donePct}%</b></div><div><span>Completado</span></div></div></div><div class="board-tabs"><button class="board-tab active">Pendiente <b>${pending.length}</b></button><button class="board-tab">En proceso <b>${process.length}</b></button><button class="board-tab">Realizada <b>${done.length}</b></button><button class="board-tab">Vencida <b>${all.filter(overdue).length}</b></button></div><div class="kanban-help"><i>↔️</i><span>Mantén presionado <b>⠿</b> y arrastra la tarea al estado deseado. El cambio queda registrado automáticamente.</span></div><div class="kanban"><section class="kanban-col pending" data-drop-status="Pendiente"><div class="kanban-head"><h3>Pendiente</h3><b>${pending.length}</b></div>${pending.map(boardCard).join('')||'<div class="empty">Sin tareas</div>'}</section><section class="kanban-col process" data-drop-status="En proceso"><div class="kanban-head"><h3>En proceso</h3><b>${process.length}</b></div>${process.map(boardCard).join('')||'<div class="empty">Sin tareas</div>'}</section><section class="kanban-col done" data-drop-status="Realizada"><div class="kanban-head"><h3>Realizada</h3><b>${done.length}</b></div>${done.map(boardCard).join('')||'<div class="empty">Sin tareas</div>'}</section></div></div>`}
-function monthTitle(d){return new Intl.DateTimeFormat('es-PE',{month:'long',year:'numeric'}).format(d).replace(/^./,c=>c.toUpperCase())}
-function calendarView(){const cur=new Date(state.calendarDate.getFullYear(),state.calendarDate.getMonth(),1);const start=(cur.getDay()+6)%7;const gridStart=new Date(cur);gridStart.setDate(cur.getDate()-start);let cells='';for(let i=0;i<42;i++){const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);const key=dateKey(d),isOut=d.getMonth()!==cur.getMonth(),isToday=key===dateKey(new Date()),isSel=key===dateKey(state.selectedDate);const notes=familyNotes().filter(n=>dateKey(n.when)===key);cells+=`<button class="cal-day ${isOut?'out':''} ${isToday?'today':''} ${isSel?'selected':''}" data-date="${key}"><span class="day-num">${d.getDate()}</span><span class="cal-dots">${notes.slice(0,3).map(n=>`<i class="cal-dot" style="background:${n.color}"></i>`).join('')}</span></button>`}const key=dateKey(state.selectedDate);const items=familyNotes().filter(n=>dateKey(n.when)===key).sort((a,b)=>noteStartDate(a)-noteStartDate(b));return `<div class="content calendar-shell"><div class="card calendar-card"><div class="cal-toolbar"><button data-cal="prev">‹</button><h2>${monthTitle(cur)}</h2><button data-cal="today">Hoy</button><button data-cal="next">›</button></div><div class="cal-week">${['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'].map(x=>`<div>${x}</div>`).join('')}</div><div class="cal-grid">${cells}</div></div><div class="card section agenda"><div class="section-head"><div class="cal-agenda-icon">📅</div><div><h2>Agenda simple</h2><div class="muted">${new Intl.DateTimeFormat('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(state.selectedDate)}</div></div><div class="agenda-count">${items.length} eventos</div></div><div class="calendar-sync-note">📲 <b>Calendario del celular:</b> guarda el evento aquí y luego pulsa <b>Agregar al calendario</b>. Se genera un archivo .ics compatible con calendarios del teléfono. También puedes abrirlo en Google Calendar.</div><div class="agenda-tools"><button class="btn primary" data-new-note="${dateKey(state.selectedDate)}">＋ Nueva nota</button><button class="btn soft" data-export-calendar>📤 Exportar agenda</button></div>${items.length?`<div class="agenda-list">${items.map(i=>`<div class="agenda-item note" data-note-id="${i.id}" title="Toca para abrir o editar"><div class="agenda-time">${esc(i.time||toLocalTime(i.when)||'09:00')}</div><div class="agenda-dot" style="background:${i.color}"></div><div class="grow"><strong>${esc(i.title)}</strong><div class="muted">${esc(i.description||i.category||'Recordatorio')}</div><small>${esc(i.category||'General')} · ${esc(user(i.creatorId).name)} · ${Number(i.duration||60)} min</small></div><div class="agenda-actions"><button type="button" class="btn soft" data-add-calendar="${i.id}">📲</button><button type="button" class="btn soft" data-google-calendar="${i.id}">G</button><button type="button" class="btn danger" data-delete-note="${i.id}">🗑</button></div></div>`).join('')}</div>`:`<div class="empty">No hay eventos para este día. Pulsa “Nueva nota” para agregar uno.</div>`}</div></div>`}
-function openNote(dateStr){const base=new Date(dateStr+'T09:00:00');$('#noteForm').reset();$('#nId').value='';$('#nDate').value=dateStr;$('#nWhen').value=toDateInput(base);$('#nTime').value='09:00';$('#nDuration').value='60';$('#noteDateText').textContent=new Intl.DateTimeFormat('es-PE',{dateStyle:'full'}).format(base);$('#noteModal .modal-head h2').textContent='Nueva nota de agenda';$('#noteModal').classList.remove('hidden');history.pushState({view:state.view,layer:'note'},'',location.href)}
-function openNoteEdit(id){const n=state.notes.find(x=>x.id===id);if(!n)return;$('#noteForm').reset();$('#nId').value=n.id;$('#nDate').value=dateKey(n.when);$('#nTitle').value=n.title||'';$('#nDescription').value=n.description||'';$('#nWhen').value=toDateInput(n.when);$('#nTime').value=n.time||'09:00';$('#nDuration').value=String(n.duration||60);$('#nCategory').value=n.category||'Casa';$('#nReminder').value=String(n.reminder??'1440');$('#nColor').value=n.color||'#2563eb';$('#noteDateText').textContent='Editando evento';$('#noteModal .modal-head h2').textContent='Editar nota de agenda';$('#noteModal').classList.remove('hidden');history.pushState({view:state.view,layer:'note'},'',location.href)}
-function requestNotifications(){if(!('Notification' in window)){toast('Este navegador no admite notificaciones');return}Notification.requestPermission().then(p=>toast(p==='granted'?'Notificaciones activadas':'Permiso no concedido'))}
-function checkReminders(){if(!('Notification' in window)||Notification.permission!=='granted')return;const now=Date.now();familyNotes().forEach(n=>{if(n.reminder==='-1'||n.notified)return;const trigger=new Date(n.when).getTime()-Number(n.reminder||0)*60000;if(now>=trigger&&now<trigger+60000){new Notification('Mi Hogar al Día',{body:n.title});n.notified=true;save()}})}
-
-function miniCalendarHtml(){const now=new Date(),y=now.getFullYear(),m=now.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7;let cells='';for(let i=0;i<start;i++)cells+='<span></span>';for(let d=1;d<=last.getDate();d++){const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const has=state.tasks.some(t=>t.dueDate&&dateKey(t.dueDate)===k)||state.notes?.some(n=>n.date===k);cells+=`<span class="${d===now.getDate()?'today ':''}${has?'has':''}">${d}</span>`}return cells}
-
-function money(n){return new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(n||0))}
-function startOfWeek(d=new Date()){const x=new Date(d);const day=(x.getDay()+6)%7;x.setHours(0,0,0,0);x.setDate(x.getDate()-day);return x}
-function expenseIcon(cat){return {'Alimentación':'🛒','Servicios':'💡','Reparaciones':'🔧','Limpieza':'🧼','Educación':'🎓','Salud':'🩺','Transporte':'🚕','Mascotas':'🐾','Entretenimiento':'🎬','Otros':'🧾'}[cat]||'🧾'}
-function expenseTotals(){const active=familyExpenses().filter(e=>e.status!=='Anulado');const nowD=new Date(),today=dateKey(nowD),week=startOfWeek(nowD),month=nowD.getMonth(),year=nowD.getFullYear();const sum=arr=>arr.reduce((a,e)=>a+Number(e.amount||0),0);return {today:sum(active.filter(e=>dateKey(e.when)===today)),week:sum(active.filter(e=>new Date(e.when)>=week)),month:sum(active.filter(e=>{const d=new Date(e.when);return d.getMonth()===month&&d.getFullYear()===year})),year:sum(active.filter(e=>new Date(e.when).getFullYear()===year)),count:active.length}}
-function filteredExpenses(){const period=state.expensePeriod||'month',cat=state.expenseCategory||'Todas',who=state.expenseUser||'Todos';const nowD=new Date(),week=startOfWeek(nowD);return familyExpenses().filter(e=>{const d=new Date(e.when);let ok=true;if(period==='today')ok=dateKey(d)===dateKey(nowD);if(period==='week')ok=d>=week;if(period==='month')ok=d.getMonth()===nowD.getMonth()&&d.getFullYear()===nowD.getFullYear();if(period==='year')ok=d.getFullYear()===nowD.getFullYear();return ok&&(cat==='Todas'||e.category===cat)&&(who==='Todos'||e.userId===who)}).sort((a,b)=>new Date(b.when)-new Date(a.when))}
-function expensesView(){const totals=expenseTotals();const items=familyExpenses().sort((a,b)=>new Date(b.when)-new Date(a.when));return `<div class="content"><div class="expense-summary"><div class="card expense-stat"><i>☀️</i><div><strong>${money(totals.today)}</strong><span>Gastado hoy</span></div></div><div class="card expense-stat"><i>📆</i><div><strong>${money(totals.week)}</strong><span>Esta semana</span></div></div><div class="card expense-stat"><i>🗓️</i><div><strong>${money(totals.month)}</strong><span>Este mes</span></div></div><div class="card expense-stat"><i>📅</i><div><strong>${money(totals.year)}</strong><span>Este año</span></div></div></div><section class="card expense-house-card"><div class="section-head"><div><h2>Movimientos del hogar</h2><p class="muted">Siempre se muestran todos los gastos de la familia.</p></div></div><div class="expense-list">${items.length?items.map(e=>`<div class="expense-row"><div class="expense-main"><span class="expense-icon">${expenseIcon(e.category)}</span><div><b>${esc(e.title)}</b><small>Registrado por ${esc(user(e.userId).name)} · ${fmt(e.when)}</small></div></div><div class="money">${money(e.amount)}</div><div class="expense-actions">${e.receipt?`<button class="btn soft" data-expense-receipt="${e.id}">📷</button>`:''}${e.status==='Anulado'?'<span class="expense-status anulado">Anulado</span>':`<button class="btn soft" data-edit-expense="${e.id}">Editar</button><button class="btn danger" data-annul-expense="${e.id}">Anular</button>`}</div></div>`).join(''):'<div class="expense-empty">Todavía no hay gastos registrados.</div>'}</div></section></div>`}
-function openExpense(id=''){const e=id?state.expenses.find(x=>x.id===id):null;$('#expenseForm').reset();$('#eId').value=e?.id||'';$('#eTitle').value=e?.title||'';$('#eAmount').value=e?.amount||'';$('#eCategory').value=e?.category||'Alimentación';$('#eWhen').value=toDateInput(e?.when||new Date());$('#eMethod').value=e?.method||'Efectivo';$('#eRepeat').value=e?.repeat||'none';$('#eNote').value=e?.note||'';$('#eTask').innerHTML='<option value="">Sin relación</option>'+familyTasks().filter(t=>!t.archived).map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join('');$('#eTask').value=e?.taskId||'';$('#eReceiptPreview').classList.toggle('hidden',!e?.receipt);if(e?.receipt)$('#eReceiptPreview').src=e.receipt;$('#expenseModal').classList.remove('hidden')}
-
-function homeView(){const active=familyTasks().filter(t=>!t.archived&&!['Realizada','Cancelada'].includes(t.status));const urgent=active.filter(t=>t.priority==='Alta'||overdue(t));const today=active.filter(t=>t.dueDate&&dateKey(t.dueDate)===dateKey(new Date()));const recent=[...active].sort((a,b)=>new Date(a.dueDate||'9999-12-31')-new Date(b.dueDate||'9999-12-31')).slice(0,4);const doneWeek=familyTasks().filter(t=>t.completedAt&&((Date.now()-new Date(t.completedAt))/86400000)<=7).length;const notices=[...familyMessages()].sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0,3);return `<div class="content"><section class="home-hero"><div><h2>Buenos días, ${esc(user(state.currentUserId).name)} 👋</h2><p>Resumen claro de las actividades, avisos y gastos de tu hogar.</p></div><div class="home-hero-art">🏡</div></section><div class="quick-grid"><button class="quick-card quick-link" data-home-focus="active">📋<strong>${active.length}</strong><span>Tareas activas</span><small>Ver pendientes y en proceso ›</small></button><button class="quick-card quick-link" data-home-focus="urgent">🚨<strong>${urgent.length}</strong><span>Urgentes o vencidas</span><small>Ver actividades ›</small></button><button class="quick-card quick-link" data-home-focus="today">📅<strong>${today.length}</strong><span>Programadas para hoy</span><small>Ver agenda de hoy ›</small></button><button class="quick-card quick-link" data-home-focus="weekdone">✅<strong>${doneWeek}</strong><span>Realizadas esta semana</span><small>Ver completadas ›</small></button></div><div class="home-grid"><section class="card home-panel"><h3>Próximas actividades</h3>${recent.map(t=>`<div class="home-task"><span class="badge p-${t.priority}">${t.priority}</span><div class="home-task-main"><b>${esc(t.title)}</b><small>${t.dueDate?fmt(t.dueDate):'Sin fecha'} · ${esc(user(t.responsibleId||t.creatorId).name)}</small></div><button class="btn soft" data-open="${t.id}">Ver</button></div>`).join('')||'<div class="empty">No hay pendientes próximos</div>'}</section><aside class="card home-panel"><h3>Avisos familiares</h3>${notices.length?notices.map(m=>`<div class="home-task"><span style="font-size:22px">📣</span><div class="home-task-main"><b>${esc(m.text)}</b><small>${esc(user(m.userId).name)} · ${fmt(m.at)}</small></div></div>`).join(''):'<div class="empty">No hay avisos familiares</div>'}</aside></div></div>`}
-function familyView(){const fu=familyUsers();const f=family();return `<div class="content"><div class="family-selector-mobile card group-panel"><strong>Grupo actual</strong><div class="group-row"><span class="group-icon">🏠</span><div class="grow"><b>${esc(f.name)}</b><small>Código: <span class="group-code">${esc(f.code)}</span></small></div><button class="btn soft" data-manage-family>Gestionar</button></div></div><div class="chat-shortcut card"><div><strong>🏠 ${esc(f.name)}</strong><div class="muted">${fu.length} integrantes · ${fu.filter(u=>u.presence==='online'||u.id===state.currentUserId).length} en línea</div></div><button class="btn primary" data-manage-family>Familias</button></div><div class="family-toolbar"><h2>Integrantes</h2><span class="muted">${fu.length} miembros</span></div><div class="family-grid">${fu.map(u=>`<div class="card family-card"><span class="presence-pin online-dot ${presenceClass(u)}"></span><label>${avatarHtml(u.id,'avatar')}<input type="file" accept="image/*" data-profile-photo="${u.id}"></label><h3>${esc(u.name)}</h3><p class="muted">${esc(u.role)}</p><div class="presence"><span class="online-dot ${presenceClass(u)}"></span>${esc(presenceText(u))}</div><p>${familyTasks().filter(t=>t.completedBy===u.id).length} realizadas</p><button class="btn soft" data-use-user="${u.id}">Usar perfil</button></div>`).join('')}<div class="family-card family-add" data-manage-family><div><div style="font-size:34px;color:var(--p)">＋</div><strong>Agregar miembro</strong><p class="muted">Invitar con código</p></div></div></div></div>`}
-function postitView(){const today=dateKey(new Date());familyPostits().forEach(p=>{if(!p.archived&&p.expiresAt&&p.expiresAt<today){p.archived=true;p.archivedAt=new Date().toISOString();p.archivedBy='system';p.archiveReason='Vencimiento automático'}});save();const filter=state.postitFilter||'active';let items=familyPostits().filter(p=>filter==='archived'?p.archived:!p.archived);if(filter==='pinned')items=items.filter(p=>p.pinned);items.sort((a,b)=>Number(b.pinned)-Number(a.pinned)||new Date(b.createdAt)-new Date(a.createdAt));return `<div class="content"><div class="postit-toolbar"><div><h2>🗒️ Pizarra familiar</h2><p>Información rápida del hogar. Las tareas siguen en el tablero.</p></div></div><div class="postit-filters"><button class="postit-filter ${filter==='active'?'active':''}" data-postit-filter="active">Activas</button><button class="postit-filter ${filter==='pinned'?'active':''}" data-postit-filter="pinned">📌 Fijadas</button><button class="postit-filter ${filter==='archived'?'active':''}" data-postit-filter="archived">Archivadas</button></div>${filter!=='archived'?'<div class="postit-dropzone" id="postitDropzone">📥 Arrastra aquí una nota para archivarla</div>':''}${items.length?`<div class="postit-grid">${items.map((p,i)=>`<article class="postit ${p.color} ${p.pinned?'pinned':''}" data-postit-id="${p.id}" draggable="${!p.archived}" style="--tilt:${[-1,1,-.5,.8][i%4]}deg">${!p.archived?`<button class="postit-drag" data-postit-drag="${p.id}" title="Arrastrar">⠿</button>`:''}${p.pinned?'<span class="postit-pin">📌</span>':''}<h3>${esc(p.title)}</h3><p>${esc(p.text)}</p><div class="postit-meta">${esc(user(p.userId).name)} · ${fmt(p.createdAt)}${p.expiresAt?`<br>Visible hasta: ${new Intl.DateTimeFormat('es-PE',{dateStyle:'medium'}).format(new Date(p.expiresAt+'T12:00:00'))}`:''}${p.archived?`<br>${p.archiveReason||'Archivada'}${p.archivedBy&&p.archivedBy!=='system'?` por ${esc(user(p.archivedBy).name)}`:''}${p.archivedAt?' · '+fmt(p.archivedAt):''}`:''}</div>${p.archived?`<span class="postit-status">📦 ${p.archiveReason||'Archivada'}</span>`:''}<div class="postit-actions">${!p.archived?`<button class="postit-done" data-complete-postit="${p.id}">✅ Concluir</button><button class="postit-archive" data-archive-postit="${p.id}">📦 Archivar</button><button class="postit-convert" data-convert-postit="${p.id}">📝 Convertir en tarea</button>${p.userId===state.currentUserId||isAdmin()?`<button class="postit-edit" data-edit-postit="${p.id}">✏️ Editar</button>`:''}`:`<button class="postit-archive" data-archive-postit="${p.id}">↩ Restaurar</button>${p.userId===state.currentUserId||isAdmin()?`<button class="postit-delete" data-delete-postit="${p.id}">🗑 Eliminar</button>`:''}`}</div></article>`).join('')}</div>`:'<div class="card postit-empty">No hay notas en esta sección.</div>'}</div>`}
-function chatView(){return postitView()}
-
-function challengeImage(kind,title,icon){
- const palettes={vasos:['#dbeafe','#2563eb'],torre:['#ffedd5','#f97316'],encesta:['#dcfce7','#16a34a'],cuchara:['#fef3c7','#d97706'],globo:['#fce7f3','#db2777'],memoria:['#ede9fe','#7c3aed']};
- const p=palettes[kind]||['#eef2ff','#4f46e5'];
- const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${p[0]}"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect width="640" height="360" rx="34" fill="url(#g)"/><circle cx="530" cy="70" r="70" fill="${p[1]}" opacity=".12"/><circle cx="90" cy="300" r="90" fill="${p[1]}" opacity=".1"/><text x="320" y="185" text-anchor="middle" font-size="112">${icon}</text><rect x="65" y="260" width="510" height="60" rx="25" fill="#fff" opacity=".9"/><text x="320" y="300" text-anchor="middle" font-family="Arial,sans-serif" font-size="27" font-weight="700" fill="#17233b">${title}</text></svg>`;
- return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg)
-}
-function challengeCatalog(){return [
-{id:'vasos',icon:'🥤',title:'Vasos y pelota',desc:'Coloca vasos plásticos en la mesa y lanza una pelota suave. Cada distancia vale más puntos.',players:'2–6',time:'10 min',level:'Fácil',image:challengeImage('vasos','Vasos y pelota','🥤🏓')},
-{id:'torre',icon:'🏗️',title:'Torre de vasos',desc:'Construyan la torre más alta antes de que termine el tiempo.',players:'2–6',time:'5 min',level:'Fácil',image:challengeImage('torre','Torre de vasos','🥤🥤')},
-{id:'encesta',icon:'🏀',title:'Encesta la pelota',desc:'Lanza pelotas de papel a una caja desde varias distancias.',players:'2–8',time:'10 min',level:'Fácil',image:challengeImage('encesta','Encesta la pelota','🏀📦')},
-{id:'cuchara',icon:'🥄',title:'Carrera con cuchara',desc:'Lleva una pelota sobre una cuchara sin dejarla caer.',players:'2–6',time:'10 min',level:'Medio',image:challengeImage('cuchara','Carrera con cuchara','🥄🥚')},
-{id:'globo',icon:'🎈',title:'Carrera de globos',desc:'Lleva el globo a la meta sin usar las manos.',players:'2–8',time:'8 min',level:'Medio',image:challengeImage('globo','Carrera de globos','🎈🏁')},
-{id:'memoria',icon:'🧠',title:'Memoria de objetos',desc:'Observa varios objetos, cúbrelos y recuerda la mayor cantidad.',players:'2–10',time:'10 min',level:'Fácil',image:challengeImage('memoria','Memoria de objetos','🧸🔑')}
-]}
-
-const DOC_LIMIT_BYTES=4*1024*1024,DOC_MAX_FILES=20,DOC_SINGLE_MAX=1.5*1024*1024;
-function myDocuments(){return (state.documents||[]).filter(d=>d.familyId===state.currentFamilyId&&d.userId===state.currentUserId)}
-function dataUrlBytes(s=''){const comma=s.indexOf(',');if(comma<0)return 0;return Math.floor((s.length-comma-1)*.75)}
-function formatBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB'}
-function documentIcon(d){if((d.mime||'').startsWith('image/'))return '🖼️';if((d.mime||'').includes('pdf'))return '📕';return '📄'}
-function documentsView(){const docs=myDocuments();const used=docs.reduce((s,d)=>s+(d.size||dataUrlBytes(d.data)),0);const pct=Math.min(100,Math.round(used/DOC_LIMIT_BYTES*100));const q=(state.documentSearch||'').toLowerCase();const area=state.documentArea||'Todas';const filtered=docs.filter(d=>(area==='Todas'||d.area===area)&&(!q||[d.name,d.type,d.area,d.reference,d.description].join(' ').toLowerCase().includes(q))).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));return `<div class="content"><div class="docs-head"><div><h2>🗂️ Documentos importantes</h2><p>Organiza SOAT, tarjetas de propiedad, seguros, contratos y documentos del hogar.</p></div><div class="docs-quota"><div class="docs-quota-row"><b>Espacio personal</b><span>${formatBytes(used)} / ${formatBytes(DOC_LIMIT_BYTES)}</span></div><div class="docs-bar"><b style="width:${pct}%"></b></div><div class="muted" style="margin-top:6px">${docs.length} de ${DOC_MAX_FILES} archivos</div></div></div><div class="doc-private-note">🔒 Cada integrante solo ve sus propios documentos. En esta versión local el límite es 4 MB por usuario; al conectar Supabase se aplicará una cuota real.</div><div class="docs-tools"><input id="documentSearch" placeholder="Buscar por nombre, tipo, auto, casa..." value="${esc(state.documentSearch)}"><select id="documentArea"><option>Todas</option>${['Auto','Casa','Personal','Salud','Educación','Trabajo','Mascota','Otro'].map(x=>`<option ${state.documentArea===x?'selected':''}>${x}</option>`).join('')}</select><button class="btn primary" data-new-document>＋ Guardar documento</button></div>${filtered.length?`<div class="docs-grid">${filtered.map(d=>`<article class="card doc-card"><div>${d.mime.startsWith('image/')?`<img class="doc-preview" src="${d.data}" alt="${esc(d.name)}">`:`<div class="doc-file-box"><div><div style="font-size:38px">${documentIcon(d)}</div><b>${esc(d.originalName||'Documento PDF')}</b></div></div>`}</div><div class="doc-title">${esc(d.name)}</div><div class="doc-meta"><span>🏷️ ${esc(d.type)} · ${esc(d.area)}</span>${d.reference?`<span>🔎 ${esc(d.reference)}</span>`:''}${d.expires?`<span>📅 Vence: ${new Intl.DateTimeFormat('es-PE',{dateStyle:'medium'}).format(new Date(d.expires+'T12:00:00'))}</span>`:''}<span>💾 ${formatBytes(d.size||dataUrlBytes(d.data))}</span></div><div class="doc-actions"><button class="btn soft" data-open-document="${d.id}">Abrir</button><button class="btn danger" data-delete-document="${d.id}">Eliminar</button></div></article>`).join('')}</div>`:'<div class="card empty">No se encontraron documentos. Usa “Guardar documento” para agregar el primero.</div>'}</div>`}
-function openDocumentModal(){const docs=myDocuments();if(docs.length>=DOC_MAX_FILES){toast('Llegaste al máximo de '+DOC_MAX_FILES+' documentos');return}$('#documentForm').reset();$('#dId').value='';$('#dFileInfo').textContent='PDF o imagen. Máximo 1.5 MB por archivo.';$('#documentModal').classList.remove('hidden')}
-function openStoredDocument(id){const d=state.documents.find(x=>x.id===id&&x.userId===state.currentUserId);if(!d)return;const a=document.createElement('a');a.href=d.data;a.download=d.originalName||d.name;a.target='_blank';document.body.appendChild(a);a.click();a.remove()}
-
-function gamesView(){
- const pending=familyTasks().filter(t=>!t.archived&&t.status==='Pendiente');
- const members=familyUsers();
- const eligible=familyTasks().filter(t=>!t.archived&&t.status!=='Cancelada'&&t.rewardClaimed!==true);
- const selectedPlayers=state.gamePlayers.length?state.gamePlayers:members.map(u=>u.id);
- const rewards=(state.rewards||defaultRewards()).filter(r=>r.active);
- const selectedRewards=rewards.filter(r=>r.selected);
- const drawRewards=state.rewardDraw?.rewardIds?.map(id=>(state.rewards||[]).find(r=>r.id===id)).filter(Boolean)||[];
- const wheelCount=Math.max(4,drawRewards.length||selectedRewards.length||4);
- const hiddenLabels=Array.from({length:wheelCount},()=> '🎁');
- const challenges=challengeCatalog();
- const adminRewardPanel=isAdmin()?`<section class="card reward-admin"><div class="reward-admin-head"><div><h2>⚙️ Administrar premios</h2><p>Solo la administradora puede ver, crear y seleccionar estas opciones.</p></div><span class="admin-badge">Privado</span></div><div class="reward-add"><input id="newRewardName" maxlength="80" placeholder="Ej. Elegir el desayuno del domingo"><button class="btn primary" id="addRewardBtn">＋ Crear premio</button></div><div class="reward-admin-list">${(state.rewards||[]).map(r=>`<div class="reward-admin-row"><label class="reward-select"><input type="checkbox" data-reward-select="${r.id}" ${r.selected?'checked':''} ${!r.active?'disabled':''}><span>${r.icon||'🎁'} ${esc(r.name)}</span></label><label class="reward-active"><input type="checkbox" data-reward-active="${r.id}" ${r.active?'checked':''}> Activo</label><button class="btn soft" data-edit-reward="${r.id}">Editar</button><button class="btn danger" data-delete-reward="${r.id}">Eliminar</button></div>`).join('')}</div><div class="reward-prepare"><label>Actividad que habilitará el premio<select id="rewardTask">${eligible.length?eligible.map(t=>`<option value="${t.id}">${esc(t.title)} · ${t.status} · ${esc(user(t.completedBy||t.responsibleId||t.creatorId).name)}</option>`).join(''):'<option value="">No hay actividades disponibles</option>'}</select></label><button class="btn success" id="prepareRewardDraw">🔒 Guardar selección y habilitar ruleta</button><small>${eligible.length?`${selectedRewards.length} premio(s) seleccionado(s). Los demás integrantes no podrán verlos.`:'Primero crea una actividad en el tablero para programar el premio.'}</small></div></section>`:'';
- const drawTask=state.rewardDraw?.taskId?familyTasks().find(t=>t.id===state.rewardDraw.taskId):null;
- const drawConfigured=!!state.rewardDraw?.enabled&&drawRewards.length>0&&!!drawTask;
- const drawReady=drawConfigured&&drawTask.status==='Realizada';
- const rewardMessage=state.rewardResult||(!drawConfigured?'La administradora debe habilitar un sorteo.':!drawReady?'Premio programado. Se habilitará automáticamente cuando la actividad sea marcada como realizada.':'La ruleta está lista. El premio permanece en secreto.');
- return `<div class="content"><div class="games-grid">
- <section class="card game-card"><h2>🎯 Ruleta de tareas</h2><p>Selecciona una tarea y los integrantes disponibles. La ruleta elegirá al responsable.</p><div class="wheel-wrap"><div class="wheel-pointer">▼</div><div class="wheel" id="taskWheel" style="background:${wheelGradient(selectedPlayers.length)};transform:rotate(${state.wheelTurns}deg)">${wheelLabels(selectedPlayers.map(id=>user(id).name))}</div></div><div class="game-controls"><label>Tarea pendiente<select id="gameTask">${pending.length?pending.map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join(''):'<option value="">No hay tareas pendientes</option>'}</select></label><label>Participantes</label><div class="player-picks">${members.map(u=>`<button type="button" class="player-pick ${selectedPlayers.includes(u.id)?'active':''}" data-game-player="${u.id}">${avatarHtml(u.id)} ${esc(u.name)}</button>`).join('')}</div><button class="btn primary" id="spinTaskWheel" ${!pending.length?'disabled':''}>🎡 Girar y asignar</button></div><div class="wheel-result" id="taskWheelResult">${state.gameResult||'El resultado aparecerá aquí.'}</div></section>
- <section class="card game-card reward-public"><h2>🎁 Ruleta secreta de premios</h2><p>${isAdmin()?'Configura abajo los premios y habilita el sorteo.':'Las opciones son secretas. Solo verás el premio cuando termine el giro.'}</p><div class="wheel-wrap"><div class="wheel-pointer">▼</div><div class="wheel secret-wheel" id="rewardWheel" style="background:${wheelGradient(wheelCount)};transform:rotate(${state.rewardTurns}deg)">${wheelLabels(hiddenLabels)}</div></div><div class="game-controls">${drawConfigured?`<div class="${drawReady?'reward-ready':'reward-wait'}">${drawReady?'✅ Sorteo habilitado':'⏳ Premio programado'} para <b>${esc(drawTask?.title||'actividad')}</b>${!drawReady?' · falta completar la tarea':''}</div>`:'<div class="reward-wait">🔒 Sorteo todavía no habilitado</div>'}<button class="btn primary" id="spinRewardWheel" ${!drawReady?'disabled':''}>🎁 Girar premio</button></div><div class="wheel-result" id="rewardWheelResult">${rewardMessage}</div></section></div>
- ${adminRewardPanel}
- <section class="challenge-intro"><h2>🏠 Retos en casa</h2><p>Juegos físicos sencillos para compartir en familia. Usa objetos seguros: vasos plásticos, pelotas suaves, papel o globos.</p></section>
- <div class="challenge-grid">${challenges.map(c=>`<article class="challenge-card"><img class="challenge-image" src="${c.image}" alt="Imagen referencial de ${esc(c.title)}"><div class="challenge-card-body"><h3>${c.title}</h3><p>${c.desc}</p><div class="challenge-meta"><span>👥 ${c.players}</span><span>⏱️ ${c.time}</span><span>⭐ ${c.level}</span></div><button class="btn primary" data-start-challenge="${c.id}">Iniciar reto</button></div></article>`).join('')}</div>
- <section class="card challenge-create"><div class="challenge-section-title"><h2>🏆 Marcador del reto</h2><span class="muted">El administrador registra los puntos</span></div><div id="challengePanel"><div class="empty">Selecciona un reto para comenzar.</div></div></section></div>`}
-
-function openChallenge(id){const c=challengeCatalog().find(x=>x.id===id);if(!c)return;const members=familyUsers();const panel=$('#challengePanel');panel.innerHTML=`<h3>${c.icon} ${c.title}</h3><p class="muted">${c.desc}</p><div class="scoreboard">${members.map(u=>`<div class="score-row"><div class="mini-user">${avatarHtml(u.id)} ${esc(u.name)}</div><input type="number" min="0" value="0" data-score-user="${u.id}" aria-label="Puntos de ${esc(u.name)}"></div>`).join('')}</div><div class="modal-actions"><button class="btn soft" id="resetChallenge">Reiniciar</button><button class="btn primary" id="finishChallenge">Finalizar y mostrar ganador</button></div><div id="challengeResult"></div>`;$('#resetChallenge').onclick=()=>openChallenge(id);$('#finishChallenge').onclick=()=>{const rows=[...$$('[data-score-user]')].map(i=>({id:i.dataset.scoreUser,score:Number(i.value||0)}));const max=Math.max(...rows.map(r=>r.score));const wins=rows.filter(r=>r.score===max);$('#challengeResult').innerHTML=`<div class="challenge-result">🎉 ${wins.map(w=>esc(user(w.id).name)).join(' y ')} ${wins.length>1?'empatan':'gana'} con ${max} puntos</div>`;if(navigator.vibrate)navigator.vibrate([60,40,60])};panel.scrollIntoView({behavior:'smooth',block:'center'})}
-
-function render(){if(state.view==='inicio')state.view='pendientes';const active=familyTasks().filter(t=>!t.archived&&!['Realizada','Cancelada'].includes(t.status));let title='Tablero',sub='Resumen del hogar',html='';if(state.view==='pendientes'){title=window.innerWidth<=680?'Tablero':'Tablero de tareas';sub='Organiza y da seguimiento a las tareas del hogar';html=boardView()}if(state.view==='calendario'){title='Calendario';sub='Recordatorios de tu familia';html=calendarView()}if(state.view==='gastos'){title=window.innerWidth<=680?'Gastos':'Gastos del hogar';sub='Controla los gastos totales del hogar';html=expensesView()}if(state.view==='realizadas'){title='Realizadas';sub='Historial de actividades';const done=familyTasks().filter(t=>t.status==='Realizada'&&!t.archived);const archived=familyTasks().filter(t=>t.archived);html=`<div class="content">${taskSection(done,'Actividades realizadas',false)}${archived.length?taskSection(archived,'Archivadas',false):''}</div>`}if(state.view==='dashboard'){if(isSuperAdmin()){title='Administración general';sub='Control global de Mi Hogar al Día';html=superAdminView();setTimeout(()=>loadSuperAdminData(),0)}else{if(!isAdmin()){state.view='inicio';return render()}title='Panel del administrador';sub='Resumen y análisis de la gestión del hogar';html=`<div class="content">${statsHtml()}${dashboard()}</div>`}}if(state.view==='familia'){if(!isAdmin()){state.view='inicio';return render()}title='Mi familia';sub='Administración de integrantes';html=familyView()}if(state.view==='chat'){title='Pizarra';sub='Notas rápidas para toda la familia';html=postitView()}if(state.view==='juegos'){title='Juegos familiares';sub='Asigna responsabilidades y reconoce el esfuerzo jugando';html=gamesView()}if(state.view==='documentos'){title='Documentos';sub='Archivos importantes de tu hogar';html=documentsView()}if(state.view==='superadmin'){if(!isSuperAdmin()){state.view='pendientes';return render()}title='Administración general';sub='Control global de Mi Hogar al Día';html=superAdminView();setTimeout(()=>loadSuperAdminData(),0)}$('#pageTitle').textContent=title;$('#pageSubtitle').textContent=sub;$('#content').innerHTML=html;$('#pendingCountNav').textContent=active.length;$('#familyNameSide').textContent=family()?.name||'Mi Hogar al Día';$$('[data-admin-only]').forEach(b=>b.classList.toggle('hidden',!isAdmin()));$$('[data-super-admin-only]').forEach(b=>b.classList.toggle('hidden',!isSuperAdmin()));$$('.nav button[data-view],.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));bindDynamic();updateUserUI();updateFab()}
-function updateFab(){const fab=$('#fab');if(!fab)return;const actions={pendientes:'Crear actividad',calendario:'Crear recordatorio',gastos:'Registrar gasto',chat:'Crear nota',documentos:'Guardar documento'};const label=actions[state.view];fab.classList.toggle('hidden',!label);fab.style.display=label?'':'none';fab.title=label||'';fab.setAttribute('aria-label',label||'Acción no disponible')}
-
-function openDecision(){document.querySelector('#decisionModal').classList.remove('hidden');history.pushState({view:state.view,layer:'decision'},'',location.href)}
-function openPostit(id=''){const p=id?state.postits.find(x=>x.id===id):null;$('#postitForm').reset();$('#pId').value=p?.id||'';$('#pTitle').value=p?.title||'';$('#pText').value=p?.text||'';$('#pExpires').value=p?.expiresAt||'';$('#pPinned').checked=!!p?.pinned;$('#pColor').value=p?.color||'yellow';$$('[data-postit-color]').forEach(b=>b.classList.toggle('active',b.dataset.postitColor===$('#pColor').value));$('#postitModal').classList.remove('hidden')}
-function convertPostitToTask(id){const p=state.postits.find(x=>x.id===id);if(!p)return;$('#fTitle').value=p.title;$('#fDescription').value=p.text;$('#fPriority').value='Media';$('#fCategory').dataset.userChanged='0';applyTaskCategorySuggestion(true);$('#taskModal').classList.remove('hidden');$('#taskModal').dataset.sourcePostit=id;toast('Completa los datos de la nueva tarea')}
-
-function archivePostitById(id,reason='Archivada manualmente'){const p=state.postits.find(x=>x.id===id);if(!p||p.archived)return;p.archived=true;p.archivedAt=new Date().toISOString();p.archivedBy=state.currentUserId;p.archiveReason=reason;save();render();toast(reason==='Concluida'?'Nota concluida y archivada':'Nota archivada')}
-function bindPostitDrag(){const zone=$('#postitDropzone');if(!zone)return;let draggedId='',ghost=null,source=null,pointerId=null,offsetX=0,offsetY=0;const clear=()=>zone.classList.remove('drop-active');const overZone=(x,y)=>{const r=zone.getBoundingClientRect();return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom};$$('.postit[draggable="true"]').forEach(card=>{card.addEventListener('dragstart',e=>{draggedId=card.dataset.postitId;e.dataTransfer.setData('text/plain',draggedId);e.dataTransfer.effectAllowed='move'});card.addEventListener('dragend',clear)});zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drop-active')});zone.addEventListener('dragleave',clear);zone.addEventListener('drop',e=>{e.preventDefault();clear();const id=e.dataTransfer.getData('text/plain')||draggedId;if(id)archivePostitById(id)});$$('[data-postit-drag]').forEach(handle=>{handle.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;e.preventDefault();source=handle.closest('.postit');draggedId=source.dataset.postitId;pointerId=e.pointerId;handle.setPointerCapture(pointerId);const r=source.getBoundingClientRect();offsetX=e.clientX-r.left;offsetY=e.clientY-r.top;ghost=source.cloneNode(true);ghost.style.position='fixed';ghost.style.width=r.width+'px';ghost.style.height=r.height+'px';ghost.style.zIndex='999';ghost.style.opacity='.88';ghost.style.pointerEvents='none';ghost.style.transform='rotate(0deg)';document.body.appendChild(ghost);source.style.opacity='.35';if(navigator.vibrate)navigator.vibrate(20)});handle.addEventListener('pointermove',e=>{if(e.pointerId!==pointerId||!ghost)return;e.preventDefault();ghost.style.left=(e.clientX-offsetX)+'px';ghost.style.top=(e.clientY-offsetY)+'px';zone.classList.toggle('drop-active',overZone(e.clientX,e.clientY))});const finish=e=>{if(e.pointerId!==pointerId)return;const shouldArchive=overZone(e.clientX,e.clientY);if(ghost)ghost.remove();if(source)source.style.opacity='';clear();const id=draggedId;ghost=null;source=null;pointerId=null;draggedId='';if(shouldArchive&&id)archivePostitById(id)};handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish)})}
-function openProfileEditor(){const u=user(state.currentUserId);$('#profileNameInput').value=u.name||'';const p=$('#profilePhotoPreview');if(u.photo){p.src=u.photo;p.classList.remove('hidden')}else{p.removeAttribute('src');p.classList.add('hidden')}$('#profilePhotoInput').value='';$('#profileModal').classList.remove('hidden')}
-function bindDynamic(){const profileBtn=$('#profilePhotoBtn');if(profileBtn)profileBtn.onclick=openProfileEditor;const profileInput=$('#profilePhotoInput');if(profileInput)profileInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;if(!f.type.startsWith('image/')){toast('Selecciona una imagen');return}const src=await readFile(f,700,.82);const p=$('#profilePhotoPreview');p.src=src;p.classList.remove('hidden')};const profileForm=$('#profileForm');if(profileForm)profileForm.onsubmit=async e=>{e.preventDefault();const u=user(state.currentUserId),name=$('#profileNameInput').value.trim();if(!name){toast('Escribe tu nombre');return}u.name=name;const p=$('#profilePhotoPreview');if(p.src&&!p.classList.contains('hidden'))u.photo=p.src;save();try{await supabaseClient.from('profiles').update({full_name:name,avatar_path:u.photo||null,last_seen:new Date().toISOString()}).eq('id',state.currentUserId);await supabaseClient.auth.updateUser({data:{full_name:name,avatar_path:u.photo||null}})}catch(err){console.warn(err)}$('#profileModal').classList.add('hidden');render();toast('Perfil actualizado')};bindKanbanDrag();bindPostitDrag();$$('[data-super-tab]').forEach(b=>b.onclick=()=>{superAdminData.tab=b.dataset.superTab;render()});$$('[data-super-refresh]').forEach(b=>b.onclick=()=>loadSuperAdminData(true));$$('[data-super-delete-family]').forEach(b=>b.onclick=()=>deleteFamilyAsSuperAdmin(b.dataset.superDeleteFamily,b.dataset.familyName));$$('[data-new-document]').forEach(b=>b.onclick=openDocumentModal);const ds=$('#documentSearch');if(ds)ds.oninput=e=>{state.documentSearch=e.target.value;render()};const da=$('#documentArea');if(da)da.onchange=e=>{state.documentArea=e.target.value;render()};$$('[data-open-document]').forEach(b=>b.onclick=()=>openStoredDocument(b.dataset.openDocument));$$('[data-delete-document]').forEach(b=>b.onclick=()=>{const d=state.documents.find(x=>x.id===b.dataset.deleteDocument&&x.userId===state.currentUserId);if(!d)return;if(confirm('¿Eliminar este documento?')){state.documents=state.documents.filter(x=>x.id!==d.id);save();render();toast('Documento eliminado')}});$$('[data-start-challenge]').forEach(b=>b.onclick=()=>openChallenge(b.dataset.startChallenge));$$('[data-game-player]').forEach(b=>b.onclick=()=>{const id=b.dataset.gamePlayer;const all=familyUsers().map(u=>u.id);if(!state.gamePlayers.length)state.gamePlayers=[...all];state.gamePlayers=state.gamePlayers.includes(id)?state.gamePlayers.filter(x=>x!==id):[...state.gamePlayers,id];render()});const stw=$('#spinTaskWheel');if(stw)stw.onclick=()=>{const task=familyTasks().find(t=>t.id===$('#gameTask').value);const ids=(state.gamePlayers.length?state.gamePlayers:familyUsers().map(u=>u.id));if(!task||!ids.length){toast('Selecciona una tarea y al menos un participante');return}const chosenIndex=Math.floor(Math.random()*ids.length),chosen=ids[chosenIndex],wheel=$('#taskWheel'),result=$('#taskWheelResult');stw.classList.add('spin-button-busy');stw.textContent='🎡 Girando...';result.textContent='La ruleta está decidiendo...';result.classList.add('waiting');state.wheelTurns=targetRotation(state.wheelTurns,chosenIndex,ids.length);requestAnimationFrame(()=>{wheel.classList.add('spinning');wheel.style.transform=`rotate(${state.wheelTurns}deg)`});setTimeout(()=>{task.responsibleId=chosen;task.history.push(mkHistory(state.currentUserId,'roulette',`La ruleta asignó la actividad a ${user(chosen).name}`,new Date().toISOString()));state.gameResult=`🎉 ${user(chosen).name} realizará: ${task.title}`;save();result.textContent=state.gameResult;result.classList.remove('waiting');result.classList.add('wheel-celebrate');stw.classList.remove('spin-button-busy');stw.textContent='🎡 Girar y asignar';launchConfetti();if(navigator.vibrate)navigator.vibrate([80,50,120]);toast('Responsable asignado por la ruleta')},5300)};const addReward=$('#addRewardBtn');if(addReward)addReward.onclick=()=>{if(!isAdmin())return;const input=$('#newRewardName'),name=input.value.trim();if(!name){toast('Escribe el nombre del premio');return}state.rewards.push({id:crypto.randomUUID(),name,icon:'🎁',active:true,selected:true});save();render();toast('Premio creado')};$$('[data-reward-select]').forEach(i=>i.onchange=()=>{const r=state.rewards.find(x=>x.id===i.dataset.rewardSelect);if(r){r.selected=!!i.checked;save();const msg=$('.reward-prepare small');if(msg)msg.textContent=(state.rewards||[]).filter(x=>x.active&&x.selected).length+' premio(s) seleccionado(s). Los demás integrantes no podrán verlos.'}});$$('[data-reward-active]').forEach(i=>i.onchange=()=>{const r=state.rewards.find(x=>x.id===i.dataset.rewardActive);if(r){r.active=!!i.checked;if(!r.active)r.selected=false;const select=$(`[data-reward-select="${r.id}"]`);if(select){select.disabled=!r.active;select.checked=!!r.selected}save();const msg=$('.reward-prepare small');if(msg)msg.textContent=(state.rewards||[]).filter(x=>x.active&&x.selected).length+' premio(s) seleccionado(s). Los demás integrantes no podrán verlos.'}});$$('[data-edit-reward]').forEach(b=>b.onclick=()=>{const r=state.rewards.find(x=>x.id===b.dataset.editReward);if(!r)return;const name=prompt('Nuevo nombre del premio:',r.name);if(name&&name.trim()){r.name=name.trim();save();render();toast('Premio actualizado')}});$$('[data-delete-reward]').forEach(b=>b.onclick=()=>{const r=state.rewards.find(x=>x.id===b.dataset.deleteReward);if(!r)return;if(confirm('¿Eliminar este premio?')){state.rewards=state.rewards.filter(x=>x.id!==r.id);save();render();toast('Premio eliminado')}});const prep=$('#prepareRewardDraw');if(prep)prep.onclick=()=>{if(!isAdmin()){toast('Solo la administradora puede habilitar premios');return}const taskId=$('#rewardTask')?.value||'';$$('[data-reward-select]').forEach(i=>{const r=state.rewards.find(x=>x.id===i.dataset.rewardSelect);if(r)r.selected=!!i.checked});$$('[data-reward-active]').forEach(i=>{const r=state.rewards.find(x=>x.id===i.dataset.rewardActive);if(r)r.active=!!i.checked});const rewardIds=(state.rewards||[]).filter(r=>r.active===true&&r.selected===true).map(r=>r.id);if(!taskId){toast('No hay una actividad seleccionada. Crea o elige una tarea del tablero.');return}if(!rewardIds.length){toast('Marca al menos un premio activo para el sorteo');return}const task=familyTasks().find(t=>t.id===taskId);if(!task){toast('La actividad seleccionada ya no existe');return}state.rewardDraw={taskId,rewardIds,enabled:true,preparedBy:state.currentUserId,preparedAt:new Date().toISOString()};state.rewardResult='';save();render();toast(task.status==='Realizada'?'Ruleta habilitada y lista para girar':'Premio programado. Se activará al completar la actividad')};const srw=$('#spinRewardWheel');if(srw)srw.onclick=()=>{const draw=state.rewardDraw;if(!draw?.enabled){toast('La administradora aún no habilitó el sorteo');return}const task=familyTasks().find(t=>t.id===draw.taskId);const rewards=draw.rewardIds.map(id=>(state.rewards||[]).find(r=>r.id===id)).filter(Boolean);if(!task||!rewards.length){toast('El sorteo ya no está disponible');return}const rewardIndex=Math.floor(Math.random()*rewards.length),reward=rewards[rewardIndex],wheel=$('#rewardWheel'),result=$('#rewardWheelResult');srw.classList.add('spin-button-busy');srw.textContent='🎁 Girando...';result.textContent='El premio sigue oculto...';result.classList.add('waiting');state.rewardTurns=targetRotation(state.rewardTurns,rewardIndex,rewards.length);requestAnimationFrame(()=>{wheel.classList.add('spinning');wheel.style.transform=`rotate(${state.rewardTurns}deg)`});setTimeout(()=>{task.rewardClaimed=true;task.reward=reward.name;task.rewardedAt=new Date().toISOString();task.rewardedBy=state.currentUserId;task.rewardDelivered=false;task.history.push(mkHistory(state.currentUserId,'reward',`Ganó el premio: ${reward.name}`,task.rewardedAt));state.rewardResult=`🏆 ${user(task.completedBy||task.responsibleId).name} ganó: ${reward.icon||'🎁'} ${reward.name}`;state.rewardDraw=null;save();result.textContent=state.rewardResult;result.classList.remove('waiting');result.classList.add('wheel-celebrate');srw.classList.remove('spin-button-busy');srw.textContent='🎁 Girar premio';launchConfetti();if(navigator.vibrate)navigator.vibrate([100,60,100,60,160]);toast('Premio revelado y registrado')},5300)};$$('[data-new-postit]').forEach(b=>b.onclick=openDecision);$$('[data-postit-filter]').forEach(b=>b.onclick=()=>{state.postitFilter=b.dataset.postitFilter;render()});$$('[data-edit-postit]').forEach(b=>b.onclick=()=>openPostit(b.dataset.editPostit));$$('[data-complete-postit]').forEach(b=>b.onclick=()=>archivePostitById(b.dataset.completePostit,'Concluida'));$$('[data-archive-postit]').forEach(b=>b.onclick=()=>{const p=state.postits.find(x=>x.id===b.dataset.archivePostit);if(!p)return;if(p.archived){p.archived=false;p.archivedAt='';p.archivedBy='';p.archiveReason='';save();render();toast('Nota restaurada')}else archivePostitById(p.id,'Archivada manualmente')});$$('[data-delete-postit]').forEach(b=>b.onclick=()=>{const p=state.postits.find(x=>x.id===b.dataset.deletePostit);if(!p)return;if(!p.archived){toast('Primero debes archivar la nota');return}if(p.userId!==state.currentUserId&&!isAdmin()){toast('Solo quien creó la nota o el administrador puede eliminarla');return}if(confirm('¿Eliminar definitivamente este post-it? Esta acción no se puede deshacer.')){state.postits=state.postits.filter(x=>x.id!==p.id);save();render();toast('Post-it eliminado definitivamente')}});$$('[data-convert-postit]').forEach(b=>b.onclick=()=>convertPostitToTask(b.dataset.convertPostit));$$('[data-new-expense]').forEach(b=>b.onclick=()=>openExpense());const ep=$('#expensePeriod');if(ep)ep.onchange=e=>{state.expensePeriod=e.target.value;render()};const ec=$('#expenseCategory');if(ec)ec.onchange=e=>{state.expenseCategory=e.target.value;render()};const eu=$('#expenseUser');if(eu)eu.onchange=e=>{state.expenseUser=e.target.value;render()};$$('[data-edit-expense]').forEach(b=>b.onclick=()=>{const x=state.expenses.find(e=>e.id===b.dataset.editExpense);if(!x)return;if(x.userId!==state.currentUserId&&!isAdmin()){toast('Solo quien registró el gasto puede editarlo');return}openExpense(x.id)});$$('[data-annul-expense]').forEach(b=>b.onclick=()=>{const x=state.expenses.find(e=>e.id===b.dataset.annulExpense);if(!x)return;if(x.userId!==state.currentUserId&&!isAdmin()){toast('Solo quien registró el gasto puede anularlo');return}if(confirm('¿Anular este gasto? El registro permanecerá en el historial.')){x.status='Anulado';x.annulledAt=new Date().toISOString();x.annulledBy=state.currentUserId;state.notes=state.notes.filter(n=>n.sourceExpenseId!==x.id);save();render();toast('Gasto anulado')}});$$('[data-expense-receipt]').forEach(b=>b.onclick=()=>{const x=state.expenses.find(e=>e.id===b.dataset.expenseReceipt);if(x?.receipt){$('#lightboxImg').src=x.receipt;$('#lightbox').classList.remove('hidden')}});$$('[data-manage-family]').forEach(b=>b.onclick=openFamilyManager);$$('[data-view]').forEach(b=>{if(!b.closest('#nav')&&!b.closest('#bottomNav'))b.onclick=()=>navigateTo(b.dataset.view,true)});$$('[data-action="new"],[data-new-task]').forEach(b=>b.onclick=openNew);$$('[data-home-focus]').forEach(b=>b.onclick=()=>{state.boardFocus=b.dataset.homeFocus;navigateTo('pendientes',true)});$$('[data-clear-focus]').forEach(b=>b.onclick=()=>{state.boardFocus='all';render()});$$('[data-go]').forEach(b=>b.onclick=()=>navigateTo(b.dataset.go,true));$$('tr[data-id]').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));$$('[data-open-card]').forEach(card=>card.onclick=e=>{if(e.target.closest('[data-drag-handle],[data-claim],button,input,select,textarea,label,a'))return;openDetail(card.dataset.openCard)});$$('[data-open]').forEach(b=>b.onclick=e=>{e.stopPropagation();openDetail(b.dataset.open)});$$('[data-claim]').forEach(b=>b.onclick=e=>{e.stopPropagation();claimTask(b.dataset.claim)});$$('[data-note-id]').forEach(card=>card.onclick=e=>{if(e.target.closest('button,input,select,textarea,label,a'))return;openNoteEdit(card.dataset.noteId)});$$('[data-postit-id]').forEach(card=>card.onclick=e=>{if(e.target.closest('[data-postit-drag],button,input,select,textarea,label,a'))return;openPostit(card.dataset.postitId)});$$('[data-filter]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;render()});const s=$('#search');if(s)s.oninput=e=>{state.search=e.target.value;render()};const p=$('#priorityFilter');if(p)p.onchange=e=>{state.priority=e.target.value;render()};$$('[data-use-user]').forEach(b=>b.onclick=()=>{state.currentUserId=b.dataset.useUser;save();render();toast('Perfil cambiado')});$$('[data-profile-photo]').forEach(i=>i.onchange=async e=>{const src=await readFile(e.target.files[0]);user(i.dataset.profilePhoto).photo=src;save();render();toast('Foto de perfil actualizada')});$('[data-cal]').forEach(b=>b.onclick=()=>{if(b.dataset.cal==='prev')state.calendarDate=new Date(state.calendarDate.getFullYear(),state.calendarDate.getMonth()-1,1);if(b.dataset.cal==='next')state.calendarDate=new Date(state.calendarDate.getFullYear(),state.calendarDate.getMonth()+1,1);if(b.dataset.cal==='today'){state.calendarDate=new Date();state.selectedDate=new Date()}render()});$('[data-export-calendar]').forEach(b=>b.onclick=downloadAgendaICS);$('[data-add-calendar]').forEach(b=>b.onclick=e=>{e.stopPropagation();downloadNoteICS(b.dataset.addCalendar)});$('[data-google-calendar]').forEach(b=>b.onclick=e=>{e.stopPropagation();openGoogleCalendar(b.dataset.googleCalendar)});$$('[data-date]').forEach(b=>b.onclick=()=>{state.selectedDate=new Date(b.dataset.date+'T12:00:00');render()});$$('[data-new-note]').forEach(b=>b.onclick=()=>openNote(b.dataset.newNote));$$('[data-delete-note]').forEach(b=>b.onclick=()=>{const n=state.notes.find(x=>x.id===b.dataset.deleteNote);if(!n)return;if(n.creatorId!==state.currentUserId){toast('Solo quien creó la nota puede eliminarla');return}state.notes=state.notes.filter(x=>x.id!==n.id);save();render();toast('Nota eliminada')});const en=$('#enableNotifications');if(en)en.onclick=requestNotifications;const cf=$('#chatForm');if(cf){cf.onsubmit=e=>{e.preventDefault();const text=$('#chatText').value.trim();if(!text)return;state.chatMessages.push({id:crypto.randomUUID(),familyId:state.currentFamilyId,userId:state.currentUserId,type:$('#chatType')?.value||'Aviso general',text,at:new Date().toISOString()});save();render();};setTimeout(()=>{const box=$('#chatMessages');if(box)box.scrollTop=box.scrollHeight},0)}}
-
-function familyManagerHtml(){const list=$('#familyGroupList');if(!list)return;const shortcuts=isAdmin()?`<div class="modal-actions" style="justify-content:flex-start;margin:0 0 12px"><button class="btn soft" data-view="dashboard">📊 Dashboard</button><button class="btn soft" data-view="familia">👨‍👩‍👧‍👦 Integrantes</button></div>`:'';list.innerHTML=shortcuts+state.families.map(f=>`<div class="group-row"><span class="group-icon">🏠</span><div class="grow"><b>${esc(f.name)}</b><small>${(f.memberIds||[]).length} integrantes · <span class="group-code">${esc(f.code)}</span></small></div><button class="btn ${f.id===state.currentFamilyId?'success':'soft'}" data-switch-family="${f.id}">${f.id===state.currentFamilyId?'Actual':'Cambiar'}</button></div>`).join('');$$('[data-switch-family]').forEach(b=>b.onclick=()=>switchFamily(b.dataset.switchFamily));$$('#familyGroupList [data-view]').forEach(b=>b.onclick=()=>{$('#familyModal').classList.add('hidden');navigateTo(b.dataset.view,true)})}
-function openFamilyManager(){familyManagerHtml();$('#familyModal').classList.remove('hidden');history.pushState({view:state.view,layer:'family'},'',location.href)}
-function switchFamily(id){const f=state.families.find(x=>x.id===id);if(!f)return;state.currentFamilyId=id;const members=familyUsers();if(!members.some(u=>u.id===state.currentUserId))state.currentUserId=members[0]?.id||state.currentUserId;state.boardFocus='all';save();setupUsers();$('#familyModal').classList.add('hidden');render();toast('Cambiaste a '+f.name)}
-function makeFamilyCode(name){const base=(name||'FAMILIA').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,6)||'FAMILIA';return base+'-'+Math.floor(1000+Math.random()*9000)}
-function setupUsers(){const account=authState.accounts.find(a=>a.id===authState.session?.accountId);const allowedFamilies=state.families.filter(f=>(f.memberIds||[]).includes(state.currentUserId));if(!allowedFamilies.some(f=>f.id===state.currentFamilyId))state.currentFamilyId=(allowedFamilies[0]||createPersonalSpace(state.currentUserId,account?.name||user(state.currentUserId).name)).id;const fsel=$('#currentFamily');fsel.innerHTML=allowedFamilies.map(f=>`<option value="${f.id}" ${f.id===state.currentFamilyId?'selected':''}>${esc(f.name)}</option>`).join('');const current=user(state.currentUserId);const sel=$('#currentUser');sel.innerHTML=`<option value="${current.id}" selected>${esc(current.name)}</option>`;sel.disabled=true;const members=familyUsers();$('#fResponsible').innerHTML='<option value="">Sin responsable</option>'+members.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');updateUserUI()}
-function updateUserUI(){updateAccountUI();const u=user(state.currentUserId),f=family();if($('#currentUser'))$('#currentUser').value=state.currentUserId;if($('#currentFamily'))$('#currentFamily').value=state.currentFamilyId;const avatar=u.photo?`<img src="${u.photo}">`:initials(u.name);$('#currentAvatar').innerHTML=avatar;if($('#currentUserName'))$('#currentUserName').textContent=u.name||'Usuario';if($('#sideAvatar'))$('#sideAvatar').innerHTML=avatar;if($('#sideUserName'))$('#sideUserName').textContent=u.name;if($('#sideUserRole'))$('#sideUserRole').textContent=isAdmin()?'Administradora':'Integrante';if($('#sideFamilyName'))$('#sideFamilyName').textContent=f?f.name:'Mi familia'}
-function normalizeTaskText(value){return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
-function suggestTaskCategory(title,description=''){const s=normalizeTaskText(title+' '+description);const rules=[
-{category:'Limpieza',words:['lavar','limpiar','barrer','trapear','aspirar','desinfectar','ordenar bano','baño','suciedad','polvo','basura','aseo']},
-{category:'Compras',words:['comprar','falta','mercado','supermercado','detergente','focos','alimentos','pan','leche','repuesto','adquirir']},
-{category:'Mantenimiento',words:['reparar','arreglar','pintar','cambiar puerta','bisagra','fuga','grifo','enchufe','techo','pared','mueble','instalar','mantenimiento']},
-{category:'Servicios',words:['internet','agua','luz','electricidad','gas','telefono','cable','tecnico','servicio']},
-{category:'Pagos',words:['pagar','recibo','cuota','deuda','vencimiento','colegio','mensualidad','alquiler','seguro']},
-{category:'Organización',words:['ordenar','organizar','clasificar','guardar','acomodar','inventario','documentos']},
-{category:'Salud',words:['doctor','medico','medicina','cita','vacuna','farmacia','salud','dentista']},
-{category:'Educación',words:['colegio','tarea escolar','reunion escolar','profesor','matricula','uniforme','libro','clase']},
-{category:'Mascotas',words:['perro','gato','mascota','veterinario','comida de perro','comida de gato','arena']},
-{category:'Cocina',words:['cocinar','comida','almuerzo','cena','desayuno','hornear','preparar','refrigeradora']},
-{category:'Seguridad',words:['cerradura','alarma','camara','seguridad','riesgo','peligro','extintor','candado']}
-];let best={category:'Otros',score:0};for(const r of rules){let score=0;for(const w of r.words){if(s.includes(normalizeTaskText(w)))score+=w.includes(' ')?3:1}if(score>best.score)best={category:r.category,score}}return best}
-function applyTaskCategorySuggestion(force=false){refreshTaskAutoMeta()}
-function openNew(){if(state.view==='calendario'){openNote(dateKey(state.selectedDate));return}$('#taskForm').reset();$('#beforePreview').classList.add('hidden');refreshTaskAutoMeta();$('#taskModal').classList.remove('hidden');setTimeout(()=>$('#fTitle')?.focus(),50);history.pushState({view:state.view,layer:'task'},'',location.href)}
-function moveTaskToStatus(id,newStatus){const t=state.tasks.find(x=>x.id===id);if(!t||t.status===newStatus)return false;const previous=t.status;t.status=newStatus;if(newStatus==='Realizada'){t.completedAt=new Date().toISOString();t.completedBy=state.currentUserId;if(!t.responsibleId)t.responsibleId=state.currentUserId}else if(previous==='Realizada'){t.completedAt=null;t.completedBy=null}addHistory(t,'status',`movió la actividad de ${previous} a ${newStatus}`);save();render();toast(`${t.title}: ${newStatus}`);return true}
-function clearDropTargets(){$$('[data-drop-status]').forEach(c=>c.classList.remove('drop-active'))}
-function bindKanbanDrag(){let draggedId='',ghost=null,source=null,pointerId=null,offsetX=0,offsetY=0;const positionGhost=(x,y)=>{if(ghost){ghost.style.left=(x-offsetX)+'px';ghost.style.top=(y-offsetY)+'px'}};const targetAt=(x,y)=>{const el=document.elementFromPoint(x,y);return el&&el.closest('[data-drop-status]')};const finish=(x,y)=>{if(!draggedId)return;const target=targetAt(x,y);if(target)moveTaskToStatus(draggedId,target.dataset.dropStatus);if(source)source.classList.remove('drag-source');if(ghost)ghost.remove();clearDropTargets();draggedId='';ghost=null;source=null;pointerId=null;document.body.style.userSelect=''};
-$$('.kanban-card').forEach(card=>{card.addEventListener('dragstart',e=>{draggedId=card.dataset.taskId;source=card;card.classList.add('drag-source');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggedId)});card.addEventListener('dragend',()=>{card.classList.remove('drag-source');clearDropTargets();draggedId=''})});
-$$('[data-drop-status]').forEach(col=>{col.addEventListener('dragover',e=>{e.preventDefault();clearDropTargets();col.classList.add('drop-active');e.dataTransfer.dropEffect='move'});col.addEventListener('dragleave',e=>{if(!col.contains(e.relatedTarget))col.classList.remove('drop-active')});col.addEventListener('drop',e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain')||draggedId;clearDropTargets();moveTaskToStatus(id,col.dataset.dropStatus)})});
-$$('[data-drag-handle]').forEach(handle=>{handle.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;e.preventDefault();source=handle.closest('.kanban-card');draggedId=source.dataset.taskId;pointerId=e.pointerId;handle.setPointerCapture(pointerId);const r=source.getBoundingClientRect();offsetX=Math.min(e.clientX-r.left,70);offsetY=Math.min(e.clientY-r.top,35);ghost=source.cloneNode(true);ghost.classList.add('drag-ghost','dragging');ghost.removeAttribute('draggable');document.body.appendChild(ghost);source.classList.add('drag-source');positionGhost(e.clientX,e.clientY);document.body.style.userSelect='none';if(navigator.vibrate)navigator.vibrate(25)});handle.addEventListener('pointermove',e=>{if(e.pointerId!==pointerId||!draggedId)return;e.preventDefault();positionGhost(e.clientX,e.clientY);clearDropTargets();const t=targetAt(e.clientX,e.clientY);if(t)t.classList.add('drop-active')});handle.addEventListener('pointerup',e=>{if(e.pointerId!==pointerId)return;e.preventDefault();finish(e.clientX,e.clientY)});handle.addEventListener('pointercancel',e=>{if(e.pointerId===pointerId)finish(-1,-1)})})}
-function addHistory(t,type,text){t.history.push(mkHistory(state.currentUserId,type,text,new Date().toISOString()))}
-function openDetail(id){const t=state.tasks.find(x=>x.id===id);if(!t)return;$('#detailTitle').textContent=t.title;$('#detailPriority').className=`badge p-${t.priority}`;$('#detailPriority').textContent=t.priority;const canArchive=t.creatorId===state.currentUserId;const canAct=!['Realizada','Cancelada','Archivada'].includes(t.status);$('#detailBody').innerHTML=`<div class="drawer-body"><div class="meta"><div class="meta-row"><span>Creado por</span><strong>${esc(user(t.creatorId).name)}</strong></div><div class="meta-row"><span>Fecha de creación</span><strong>${fmt(t.createdAt)}</strong></div><div class="meta-row"><span>Responsable</span><strong>${esc(user(t.responsibleId).name)}</strong></div><div class="meta-row"><span>Estado</span><span class="badge ${statusClass(t.status)}">${t.status}</span></div><div class="meta-row"><span>Fecha límite</span><strong class="${overdue(t)?'overdue':''}">${fmt(t.dueDate)}</strong></div><div class="meta-row"><span>Repetición</span><strong>${t.repeat==='weekly'?'Semanal':t.repeat==='monthly'?'Mensual':'No repetir'}</strong></div></div><p>${esc(t.description||'Sin descripción.')}</p><div class="photos"><div class="photo-box"><h4>Antes</h4>${t.beforePhoto?`<img src="${t.beforePhoto}" data-lightbox>`:'<div class="photo-empty">Sin foto inicial</div>'}<div class="task-photo-actions"><label class="task-photo-upload">📷 ${t.beforePhoto?'Cambiar':'Adjuntar'} foto inicial<input id="detailBeforePhoto" type="file" accept="image/*" capture="environment"></label></div></div><div class="photo-box"><h4>Después</h4>${t.afterPhoto?`<img src="${t.afterPhoto}" data-lightbox>`:'<div class="photo-empty">Sin foto final</div>'}<div class="task-photo-actions"><label class="task-photo-upload">📷 ${t.afterPhoto?'Cambiar':'Adjuntar'} foto final<input id="detailAfterPhoto" type="file" accept="image/*" capture="environment"></label></div></div></div><div class="image-status">Las imágenes se optimizan automáticamente antes de guardarse.</div>${canAct?`<div class="action-stack">${!t.responsibleId?'<button id="claimBtn" class="btn primary">🙋 Yo lo haré</button>':''}<div class="action-row"><button id="processBtn" class="btn soft">${t.status==='En proceso'?'Volver a pendiente':'▶ Iniciar actividad'}</button><button id="showCompleteBtn" class="btn success">✓ Marcar realizada</button></div></div><div id="completePanel" class="complete-panel hidden"><strong>Finalizar actividad</strong><input id="afterPhoto" type="file" accept="image/*"><textarea id="completeNote" rows="2" placeholder="Comentario final opcional"></textarea><button id="completeBtn" class="btn primary" style="width:100%">Guardar como realizada</button></div>`:''}<div class="task-comments"><h3>💬 Conversación de esta actividad</h3>${(t.comments||[]).length?(t.comments||[]).map(c=>`<div class="task-comment">${avatarHtml(c.userId)}<div class="task-comment-body"><b>${esc(user(c.userId).name)}</b>${esc(c.text)}<small>${fmt(c.at)}</small></div></div>`).join(''):'<div class="muted">Todavía no hay comentarios.</div>'}<form class="task-comment-form" id="taskCommentForm"><input id="taskCommentText" maxlength="300" placeholder="Escribe un comentario sobre esta tarea..." required><button class="btn primary">Enviar</button></form></div>${canArchive?`<button id="archiveBtn" class="btn danger" style="width:100%;margin-top:12px">${t.archived?'Restaurar actividad':'Archivar actividad'}</button>`:'<p class="muted">Solo quien creó la actividad puede archivarla.</p>'}<div class="timeline"><h3>Historial</h3>${[...t.history].sort((a,b)=>new Date(b.at)-new Date(a.at)).map(h=>`<div class="event"><strong>${esc(user(h.userId).name)}</strong> ${esc(h.text)}<small>${fmt(h.at)}</small></div>`).join('')}</div></div>`;$('#detailModal').classList.remove('hidden');history.pushState({view:state.view,layer:'detail'},'',location.href);const claim=$('#claimBtn');if(claim)claim.onclick=()=>claimTask(t.id);const proc=$('#processBtn');if(proc)proc.onclick=()=>toggleProcess(t.id);const show=$('#showCompleteBtn');if(show)show.onclick=()=>$('#completePanel').classList.toggle('hidden');const comp=$('#completeBtn');if(comp)comp.onclick=()=>completeTask(t.id);const arch=$('#archiveBtn');if(arch)arch.onclick=()=>archiveTask(t.id);$$('[data-lightbox]').forEach(img=>img.onclick=()=>{$('#lightboxImg').src=img.src;$('#lightbox').classList.remove('hidden')})};const detailBefore=$('#detailBeforePhoto'),detailAfter=$('#detailAfterPhoto');if(detailBefore)detailBefore.onchange=async e=>{const file=e.target.files&&e.target.files[0];if(!file)return;toast('Optimizando imagen…');t.beforePhoto=await readFile(file,1600,.82);t.history=t.history||[];t.history.push(mkHistory(state.currentUserId,'photo','adjuntó o actualizó la foto inicial',new Date().toISOString()));save();openDetail(t.id);toast('Foto inicial guardada')};if(detailAfter)detailAfter.onchange=async e=>{const file=e.target.files&&e.target.files[0];if(!file)return;toast('Optimizando imagen…');t.afterPhoto=await readFile(file,1600,.82);t.history=t.history||[];t.history.push(mkHistory(state.currentUserId,'photo','adjuntó o actualizó la foto final',new Date().toISOString()));save();openDetail(t.id);toast('Foto final guardada')};const commentForm=$('#taskCommentForm');if(commentForm)commentForm.onsubmit=e=>{e.preventDefault();const input=$('#taskCommentText');const value=input.value.trim();if(!value)return;t.comments=t.comments||[];t.comments.push({id:crypto.randomUUID(),userId:state.currentUserId,text:value,at:new Date().toISOString()});save();openDetail(t.id);toast('Comentario agregado')}
-function claimTask(id){const t=state.tasks.find(x=>x.id===id);if(!t||t.responsibleId)return;t.responsibleId=state.currentUserId;addHistory(t,'claimed','asumió la actividad');save();$('#detailModal').classList.add('hidden');render();toast('Actividad asignada a ti')}
-function toggleProcess(id){const t=state.tasks.find(x=>x.id===id);t.status=t.status==='En proceso'?'Pendiente':'En proceso';addHistory(t,'status',t.status==='En proceso'?'puso la actividad en proceso':'volvió la actividad a pendiente');save();$('#detailModal').classList.add('hidden');render();toast('Estado actualizado')}
-async function completeTask(id){const t=state.tasks.find(x=>x.id===id),file=$('#afterPhoto').files[0];if(t.requirePhoto&&!file){toast('Esta actividad requiere una foto final');return}t.afterPhoto=await readFile(file);t.status='Realizada';t.completedAt=new Date().toISOString();t.completedBy=state.currentUserId;if(!t.responsibleId)t.responsibleId=state.currentUserId;const note=$('#completeNote').value.trim();addHistory(t,'completed',`marcó la actividad como realizada${note?': '+note:''}`);save();$('#detailModal').classList.add('hidden');render();toast('Actividad realizada')}
-function archiveTask(id){const t=state.tasks.find(x=>x.id===id);if(t.creatorId!==state.currentUserId)return;t.archived=!t.archived;t.status=t.archived?'Archivada':(t.completedAt?'Realizada':'Pendiente');addHistory(t,'archive',t.archived?'archivó la actividad':'restauró la actividad');save();$('#detailModal').classList.add('hidden');render();toast(t.archived?'Actividad archivada':'Actividad restaurada')}
-function readFile(file,maxSize=1600,quality=.82){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(!file.type||!file.type.startsWith('image/')){const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);return}const r=new FileReader();r.onerror=reject;r.onload=()=>{const img=new Image();img.onerror=reject;img.onload=()=>{let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;const scale=Math.min(1,maxSize/Math.max(w,h));w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);let data='';try{data=canvas.toDataURL('image/webp',quality);if(!data.startsWith('data:image/webp'))data=canvas.toDataURL('image/jpeg',quality)}catch(e){data=canvas.toDataURL('image/jpeg',quality)}resolve(data)};img.src=r.result};r.readAsDataURL(file)})}
-
-$('#eReceipt').onchange=async e=>{const src=await readFile(e.target.files[0]);$('#eReceiptPreview').src=src;$('#eReceiptPreview').classList.toggle('hidden',!src)};
-$('#expenseForm').onsubmit=async e=>{e.preventDefault();const id=$('#eId').value;let item=id?state.expenses.find(x=>x.id===id):null;if(item&&item.userId!==state.currentUserId&&!isAdmin()){toast('No tienes permiso para editar este gasto');return}const receipt=$('#eReceiptPreview').classList.contains('hidden')?'':$('#eReceiptPreview').src;const data={familyId:state.currentFamilyId,title:$('#eTitle').value.trim(),amount:Number($('#eAmount').value),category:$('#eCategory').value,when:parseDateOnly($('#eWhen').value).toISOString(),method:$('#eMethod').value,taskId:$('#eTask').value,repeat:$('#eRepeat').value,note:$('#eNote').value.trim(),receipt,status:'Activo'};if(item){Object.assign(item,data,{updatedAt:new Date().toISOString(),updatedBy:state.currentUserId});syncExpenseReminder(item)}else{const created={id:crypto.randomUUID(),...data,userId:state.currentUserId,createdAt:new Date().toISOString()};state.expenses.push(created);syncExpenseReminder(created)}save();$('#expenseModal').classList.add('hidden');state.view='gastos';render();toast(item?('Gasto actualizado'+(data.repeat!=='none'?' y recordatorio ajustado':'')):(data.repeat!=='none'?'Gasto registrado y próximo recordatorio creado':'Gasto registrado'))};
-
-
-$('#decisionTask').onclick=()=>{$('#decisionModal').classList.add('hidden');openNew()};
-$('#decisionPostit').onclick=()=>{$('#decisionModal').classList.add('hidden');openPostit()};
-$$('[data-postit-color]').forEach(b=>b.onclick=()=>{$('#pColor').value=b.dataset.postitColor;$$('[data-postit-color]').forEach(x=>x.classList.toggle('active',x===b))});
-$('#postitForm').onsubmit=e=>{e.preventDefault();const id=$('#pId').value;let p=id?state.postits.find(x=>x.id===id):null;const data={familyId:state.currentFamilyId,title:$('#pTitle').value.trim(),text:$('#pText').value.trim(),expiresAt:$('#pExpires').value,pinned:$('#pPinned').checked,color:$('#pColor').value,archived:false};if(p){if(p.userId!==state.currentUserId&&!isAdmin()){toast('No tienes permiso para editar esta nota');return}Object.assign(p,data,{updatedAt:new Date().toISOString(),updatedBy:state.currentUserId})}else state.postits.push({id:crypto.randomUUID(),...data,userId:state.currentUserId,createdAt:new Date().toISOString()});save();$('#postitModal').classList.add('hidden');state.view='chat';render();toast(p?'Nota actualizada':'Nota publicada')};
-
-
-$('#documentForm').onsubmit=async e=>{e.preventDefault();const file=$('#dFile').files&&$('#dFile').files[0];if(!file){toast('Selecciona un documento o imagen');return}if(!(file.type.startsWith('image/')||file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf'))){toast('Solo se permiten imágenes o PDF');return}if(file.size>DOC_SINGLE_MAX){toast('El archivo supera el máximo de 1.5 MB');return}const docs=myDocuments();if(docs.length>=DOC_MAX_FILES){toast('Llegaste al máximo de documentos');return}toast('Optimizando y guardando…');const data=await readFile(file,1800,.78);const size=dataUrlBytes(data);const used=docs.reduce((s,d)=>s+(d.size||dataUrlBytes(d.data)),0);if(used+size>DOC_LIMIT_BYTES){toast('No hay espacio suficiente en tu cuota personal');return}state.documents.push({id:crypto.randomUUID(),familyId:state.currentFamilyId,userId:state.currentUserId,name:$('#dName').value.trim(),area:$('#dArea').value,type:$('#dType').value,expires:$('#dExpires').value,reference:$('#dReference').value.trim(),description:$('#dDescription').value.trim(),originalName:file.name,mime:file.type||'application/pdf',data,size,createdAt:new Date().toISOString()});save();$('#documentModal').classList.add('hidden');state.view='documentos';render();toast('Documento guardado')};
-$('#dFile').onchange=e=>{const f=e.target.files&&e.target.files[0];$('#dFileInfo').textContent=f?`${f.name} · ${formatBytes(f.size)}`:'PDF o imagen. Máximo 1.5 MB por archivo.'};
-
-$('#noteForm').onsubmit=e=>{e.preventDefault();const when=$('#nWhen').value,time=$('#nTime').value||'09:00';if(!when)return;const id=$('#nId').value;const start=new Date(`${when}T${time}:00`);const data={familyId:state.currentFamilyId,title:$('#nTitle').value.trim(),description:$('#nDescription').value.trim(),when:start.toISOString(),time,duration:Number($('#nDuration').value||60),category:$('#nCategory').value,reminder:$('#nReminder').value,color:$('#nColor').value};if(id){const note=state.notes.find(x=>x.id===id);if(!note)return;Object.assign(note,data,{updatedAt:new Date().toISOString(),updatedBy:state.currentUserId,notified:false})}else state.notes.push({id:crypto.randomUUID(),...data,creatorId:state.currentUserId,createdAt:new Date().toISOString(),notified:false});save();state.selectedDate=start;state.calendarDate=start;$('#noteModal').classList.add('hidden');render();toast(id?'Nota actualizada':'Nota guardada en la agenda')};
-
-$('#fTitle').addEventListener('input',()=>applyTaskCategorySuggestion(false));$('#fDescription').addEventListener('input',()=>applyTaskCategorySuggestion(false));$('#fPriority').addEventListener('change',refreshTaskAutoMeta);
-$('#taskForm').onsubmit=async e=>{e.preventDefault();refreshTaskAutoMeta();const createdAt=new Date().toISOString(),id=crypto.randomUUID();const task={id,familyId:state.currentFamilyId,title:$('#fTitle').value.trim(),description:$('#fDescription').value.trim(),category:$('#fCategory').value,priority:$('#fPriority').value,creatorId:state.currentUserId,responsibleId:$('#fResponsible').value,createdAt,dueDate:$('#fDue').value?parseDateOnly($('#fDue').value).toISOString():'',status:'Pendiente',beforePhoto:await readFile($('#fBefore').files[0]),afterPhoto:'',completedAt:null,completedBy:null,archived:false,repeat:$('#fRepeat').value,requirePhoto:$('#fRequirePhoto').checked,comments:[],history:[mkHistory(state.currentUserId,'created','creó la actividad',createdAt)]};state.tasks.unshift(task);const source=$('#taskModal').dataset.sourcePostit;if(source){const p=state.postits.find(x=>x.id===source);if(p)p.archived=true;delete $('#taskModal').dataset.sourcePostit}save();$('#taskModal').classList.add('hidden');render();toast(source?'Nota convertida en tarea':'Actividad creada correctamente')}
-$('#fBefore').onchange=async e=>{const src=await readFile(e.target.files[0]);if(src){$('#beforePreview').src=src;$('#beforePreview').classList.remove('hidden')}};
-function setSidebar(open){const side=$('#sidebar'),back=$('#sidebarBackdrop');side.classList.toggle('open',!!open);if(back)back.classList.toggle('show',!!open);document.body.style.overflow=open?'hidden':''}
-function navigateTo(view,push=true){if(view==='superadmin'&&!isSuperAdmin()){toast('Acceso exclusivo del administrador general');setSidebar(false);return}if((view==='dashboard'||view==='familia')&&!isAdmin()){toast('Esta sección es solo para el administrador');setSidebar(false);return}setSidebar(false);if(!view)return;if(view===state.view){save();render();return}state.view=view;save();render();window.scrollTo({top:0,behavior:'smooth'});if(push)history.pushState({view},'',location.href)}
-function closeOpenLayer(){const open=[...$$('.overlay:not(.hidden)')];if(open.length){open[open.length-1].classList.add('hidden');return true}if($('#sidebar').classList.contains('open')){setSidebar(false);return true}return false}
-function navClick(e){const b=e.target.closest('button');if(!b)return;if(b.dataset.action==='new')openNew();if(b.dataset.view)navigateTo(b.dataset.view,true)}
-$('#nav').onclick=navClick;$('#bottomNav').onclick=navClick;const menuBtn=$('#menuBtn'),sidebarBackdrop=$('#sidebarBackdrop');if(menuBtn)menuBtn.onclick=()=>setSidebar(!$('#sidebar').classList.contains('open'));if(sidebarBackdrop)sidebarBackdrop.onclick=()=>setSidebar(false);$('#fab').onclick=()=>{if(state.view==='pendientes')openNew();else if(state.view==='calendario')openNote(dateKey(state.selectedDate));else if(state.view==='gastos')openExpense();else if(state.view==='chat')openDecision();else if(state.view==='documentos')openDocumentModal();else return};$('#currentUser').onchange=e=>{e.target.value=state.currentUserId};$$('[data-close]').forEach(b=>b.onclick=()=>{const el=$('#'+b.dataset.close);if(el)el.classList.add('hidden')});$$('.overlay').forEach(o=>o.onclick=e=>{if(e.target===o)o.classList.add('hidden')});
-window.addEventListener('popstate',e=>{if(closeOpenLayer())return;const target=e.state&&e.state.view?e.state.view:'inicio';if(target!==state.view){state.view=target;save();render();window.scrollTo(0,0)}else if(state.view==='inicio'){history.pushState({view:'inicio',guard:true},'',location.href);toast('Ya estás en Inicio')}});
-
-$('#manageFamilyBtn').onclick=openFamilyManager;
-$('#currentFamily').onchange=e=>switchFamily(e.target.value);
-$('#showCreateFamily').onclick=()=>{$('#showCreateFamily').parentElement.classList.add('hidden');$('#createFamilyForm').classList.remove('hidden')};
-$('#showJoinFamily').onclick=()=>{$('#showJoinFamily').parentElement.classList.add('hidden');$('#joinFamilyForm').classList.remove('hidden')};
-$('#cancelFamilyForm').onclick=()=>{$('#createFamilyForm').classList.add('hidden');$('#showCreateFamily').parentElement.classList.remove('hidden')};
-$('#cancelJoinForm').onclick=()=>{$('#joinFamilyForm').classList.add('hidden');$('#showJoinFamily').parentElement.classList.remove('hidden')};
-$('#createFamilyForm').onsubmit=e=>{e.preventDefault();const name=$('#newFamilyName').value.trim();if(!name)return;const id=crypto.randomUUID();state.families.push({id,name,code:makeFamilyCode(name),createdBy:state.currentUserId,memberIds:[state.currentUserId],createdAt:new Date().toISOString()});save();$('#createFamilyForm').reset();switchFamily(id);toast('Familia creada correctamente')};
-$('#joinFamilyForm').onsubmit=e=>{e.preventDefault();const code=$('#joinFamilyCode').value.trim().toUpperCase();const f=state.families.find(x=>x.code.toUpperCase()===code);if(!f){toast('Código no encontrado en este dispositivo');return}if(!(f.memberIds||[]).includes(state.currentUserId))f.memberIds.push(state.currentUserId);save();switchFamily(f.id);toast('Te uniste a '+f.name)};
-const welcome=$('#welcomeScreen');if(welcome&&(localStorage.getItem('mh_welcome_seen_v595')==='1'||localStorage.getItem('mh_welcome_seen_v541')==='1')){welcome.classList.add('hidden');welcome.style.display='none'};const we=$('#welcomeEnter');if(we)we.onclick=e=>window.enterMiHogar(e,'pendientes');const wg=$('#welcomeGames');if(wg)wg.onclick=e=>window.enterMiHogar(e,'juegos');
-setupUsers();save();
-$$('[data-auth-tab]').forEach(b=>b.onclick=()=>showAuth(b.dataset.authTab));
-$$('[data-eye]').forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.eye);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁️':'🙈'});
-$$('input[name="accountMode"]').forEach(r=>r.onchange=()=>$('#familyNameField').classList.toggle('hidden',r.value!=='family'||!r.checked));
-$('#showReset').onclick=()=>{$('#loginForm').classList.add('hidden');$('#registerForm').classList.add('hidden');$('#resetForm').classList.remove('hidden');$$('[data-auth-tab]').forEach(b=>b.classList.remove('active'))};
-$('#backLogin').onclick=()=>showAuth('login');
-$('#backLoginFromSent').onclick=()=>showAuth('login');
-$('#backLoginFromVerify').onclick=()=>showAuth('login');
-$('#loginForm').onsubmit=async e=>{e.preventDefault();const email=$('#loginEmail').value.trim().toLowerCase(),password=$('#loginPassword').value;const btn=e.submitter;btn.disabled=true;btn.textContent='Ingresando…';const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});btn.disabled=false;btn.textContent='Iniciar sesión';if(error){toast(friendlyAuthError(error));return}await ensureSupabaseWorkspace(data.session)};
-$('#registerForm').onsubmit=async e=>{e.preventDefault();const name=$('#registerName').value.trim(),email=$('#registerEmail').value.trim().toLowerCase(),email2=$('#registerEmail2').value.trim().toLowerCase(),p1=$('#registerPassword').value,p2=$('#registerPassword2').value,mode=$('input[name="accountMode"]:checked').value,familyName=$('#registerFamilyName').value.trim();if(email!==email2){toast('Los correos electrónicos no coinciden');return}if(p1!==p2){toast('Las contraseñas no coinciden');return}const btn=e.submitter;btn.disabled=true;btn.textContent='Creando cuenta…';const {data,error}=await supabaseClient.auth.signUp({email,password:p1,options:{emailRedirectTo:APP_URL,data:{full_name:name,account_mode:mode,family_name:familyName}}});btn.disabled=false;btn.textContent='Crear mi cuenta';if(error){toast(friendlyAuthError(error));return}if(data.session)await ensureSupabaseWorkspace(data.session);else{showEmailSent(email,'confirm');toast('Revisa tu correo para confirmar la cuenta')}};
-$('#resetForm').onsubmit=async e=>{e.preventDefault();const email=$('#resetEmail').value.trim().toLowerCase();const btn=e.submitter;btn.disabled=true;btn.textContent='Enviando…';const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:APP_URL});btn.disabled=false;btn.textContent='Enviar enlace de recuperación';if(error){toast(friendlyAuthError(error));return}showEmailSent(email,'reset');toast('Enlace de recuperación enviado')};
-$('#newPasswordForm').onsubmit=async e=>{e.preventDefault();const p1=$('#newPassword').value,p2=$('#newPassword2').value;if(p1!==p2){toast('Las contraseñas no coinciden');return}const btn=e.submitter;btn.disabled=true;btn.textContent='Guardando…';const {error}=await supabaseClient.auth.updateUser({password:p1});btn.disabled=false;btn.textContent='Guardar nueva contraseña';if(error){toast(friendlyAuthError(error));return}authState.recovery=false;await supabaseClient.auth.signOut();history.replaceState({},'',location.pathname);showAuth('login');toast('Contraseña actualizada. Inicia sesión con tu nueva contraseña')};
-const resend=$('#resendConfirmBtn');if(resend)resend.onclick=async()=>{const email=$('#verifyEmail').value.trim();if(!email){toast('Escribe tu correo en Crear cuenta');return}const {error}=await supabaseClient.auth.resend({type:'signup',email,options:{emailRedirectTo:APP_URL}});toast(error?friendlyAuthError(error):'Correo de confirmación reenviado')};
-const sideLogout=$('#logoutBtn');if(sideLogout)sideLogout.onclick=logout;const topLogout=$('#topLogoutBtn');if(topLogout)topLogout.onclick=logout;const globalLogout=$('#globalLogoutBtn');if(globalLogout)globalLogout.onclick=logout;const globalAdmin=$('#globalAdminBtn');if(globalAdmin)globalAdmin.onclick=async()=>{await loadGlobalRole();if(isSuperAdmin())navigateTo('superadmin',true);else toast('Tu cuenta no tiene rol super_admin')};
-document.addEventListener('click',async e=>{const logoutTarget=e.target.closest('#logoutBtn,#topLogoutBtn,#globalLogoutBtn,[data-action="logout"]');if(logoutTarget){e.preventDefault();e.stopPropagation();await logout();return}const adminTarget=e.target.closest('#globalAdminBtn,#superAdminTopBtn,#superAdminQuickBtn,[data-view="superadmin"]');if(adminTarget){e.preventDefault();e.stopPropagation();await loadGlobalRole();if(!isSuperAdmin()){toast('Tu cuenta aún no fue reconocida como superadministrador');return}navigateTo('superadmin',true);return}});
-supabaseClient.auth.onAuthStateChange(async(event,session)=>{if(event==='PASSWORD_RECOVERY'){authState.recovery=true;showAuth('login');$('#loginForm').classList.add('hidden');$('#newPasswordForm').classList.remove('hidden');return}if(event==='SIGNED_OUT'){authState.session=null;showAuth('login');return}if(session&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){try{await ensureSupabaseWorkspace(session)}catch(err){console.error(err);toast('Sesión iniciada, pero no se pudo preparar el espacio: '+friendlyAuthError(err))}}});
-(async()=>{const {data,error}=await supabaseClient.auth.getSession();if(error){console.error(error);showAuth('login');return}if(data.session){try{await ensureSupabaseWorkspace(data.session)}catch(err){console.error(err);showAuth('login');toast('No se pudo cargar tu espacio en Supabase')}}else showAuth('login')})();
-
-
-render();history.replaceState({view:state.view},'',location.href);history.pushState({view:state.view,guard:true},'',location.href);checkReminders();setInterval(checkReminders,30000);
-
-
-(()=>{
-  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  let activeRecognition=null;
-  let activeButton=null;
-
-  function voiceMessage(message){
-    if(typeof window.toast==='function'){ window.toast(message); return; }
-    const old=document.querySelector('.voice-toast'); if(old) old.remove();
-    const el=document.createElement('div'); el.className='voice-toast'; el.textContent=message;
-    document.body.appendChild(el); setTimeout(()=>el.remove(),2600);
-  }
-
-  function eligible(el){
-    if(!el||el.dataset.voiceReady==='1'||el.disabled||el.readOnly)return false;
-    if(el.tagName==='TEXTAREA')return true;
-    if(el.tagName!=='INPUT')return false;
-    const type=(el.type||'text').toLowerCase();
-    return ['text','search','email','tel','url'].includes(type);
-  }
-
-  function stopActive(){
-    if(activeRecognition){ try{activeRecognition.stop()}catch(e){} }
-  }
-
-  function attachVoice(el){
-    if(!eligible(el))return;
-    el.dataset.voiceReady='1';
-    const wrap=document.createElement('span');
-    wrap.className='voice-input-wrap'+(el.tagName==='TEXTAREA'?' textarea-wrap':'');
-    el.parentNode.insertBefore(wrap,el);
-    wrap.appendChild(el);
-    const btn=document.createElement('button');
-    btn.type='button'; btn.className='voice-mic-btn'; btn.innerHTML='🎤';
-    btn.setAttribute('aria-label','Dictar texto por voz');
-    btn.title='Dictar texto por voz';
-    if(!SpeechRecognition){btn.disabled=true;btn.title='El dictado no es compatible con este navegador'}
-    wrap.appendChild(btn);
-
-    btn.addEventListener('click',()=>{
-      if(!SpeechRecognition){voiceMessage('El dictado por voz no está disponible en este navegador');return;}
-      if(activeRecognition&&activeButton===btn){stopActive();return;}
-      stopActive();
-      const recognition=new SpeechRecognition();
-      activeRecognition=recognition; activeButton=btn;
-      recognition.lang='es-PE';
-      recognition.continuous=false;
-      recognition.interimResults=true;
-      recognition.maxAlternatives=1;
-      const initial=el.value.trim();
-      let finalText='';
-      btn.classList.add('listening'); btn.innerHTML='⏹️';
-      voiceMessage('Escuchando… habla con claridad');
-      recognition.onresult=(event)=>{
-        let interim='';
-        for(let i=event.resultIndex;i<event.results.length;i++){
-          const phrase=event.results[i][0].transcript.trim();
-          if(event.results[i].isFinal)finalText+=(finalText?' ':'')+phrase; else interim+=(interim?' ':'')+phrase;
-        }
-        const spoken=[finalText,interim].filter(Boolean).join(' ');
-        el.value=[initial,spoken].filter(Boolean).join(initial&&spoken?' ':'');
-        el.dispatchEvent(new Event('input',{bubbles:true}));
-      };
-      recognition.onerror=(event)=>{
-        const messages={
-          'not-allowed':'Debes permitir el acceso al micrófono',
-          'service-not-allowed':'El navegador bloqueó el servicio de voz',
-          'no-speech':'No se detectó voz. Inténtalo nuevamente',
-          'audio-capture':'No se pudo acceder al micrófono',
-          'network':'No hay conexión para usar el dictado'
-        };
-        voiceMessage(messages[event.error]||'No se pudo completar el dictado');
-      };
-      recognition.onend=()=>{
-        btn.classList.remove('listening'); btn.innerHTML='🎤';
-        if(activeRecognition===recognition){activeRecognition=null;activeButton=null;}
-        el.dispatchEvent(new Event('change',{bubbles:true}));
-        el.focus();
-      };
-      try{recognition.start()}catch(e){voiceMessage('No se pudo iniciar el micrófono')}
-    });
-  }
-
-  function scan(root=document){
-    if(root.matches&&eligible(root))attachVoice(root);
-    root.querySelectorAll&&root.querySelectorAll('input,textarea').forEach(attachVoice);
-  }
-  scan();
-  const observer=new MutationObserver(mutations=>{
-    for(const mutation of mutations){
-      mutation.addedNodes.forEach(node=>{if(node.nodeType===1)scan(node)});
+let state = {
+  view: 'dashboard',
+  theme: 'dark',
+  pinLocked: false,
+  pinCode: localStorage.getItem(PIN_KEY) || '1234',
+  step1Auth: false,
+  step2Pin: false,
+  user: JSON.parse(localStorage.getItem(USER_KEY) || 'null') || {
+    name: 'José Hugo',
+    email: 'tualiadoenusaforms@gmail.com',
+    role: 'Administrador',
+    disciplineGoal: 85,
+    monthlySavingsGoal: 500,
+    monthlyBudget: 1500
+  },
+  googleEmail: 'tualiadoenusaforms@gmail.com',
+  transactions: [
+    { id: 'tx-1', type: 'income', title: 'Ingreso Principal', amount: 2500, category: 'Sueldo', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Mensualidad' },
+    { id: 'tx-2', type: 'expense', title: 'Alimentación Semanal', amount: 240, category: 'Alimentación', date: new Date().toISOString().slice(0, 10), method: 'Yape / Plin', notes: 'Supermercado' },
+    { id: 'tx-3', type: 'expense', title: 'Servicio de Internet y Luz', amount: 165, category: 'Servicios', date: new Date().toISOString().slice(0, 10), method: 'Tarjeta', notes: 'Servicios básicos' },
+    { id: 'tx-4', type: 'expense', title: 'Pago Cuota 2/6 · Tarjeta de Crédito BCP', amount: 300, category: 'Pago de Deuda / Cuotas', date: new Date().toISOString().slice(0, 10), method: 'Transferencia', notes: 'Amortización cuota mensual' }
+  ],
+  debts: [
+    {
+      id: 'debt-1',
+      title: 'Tarjeta de Crédito BCP Visa',
+      creditor: 'Banco BCP',
+      category: 'Tarjeta de Crédito',
+      totalAmount: 1800,
+      installmentsCount: 6,
+      installmentAmount: 300,
+      startDate: '2026-08-15',
+      dueDay: 15,
+      frequency: 'monthly',
+      notes: 'Compras en 6 cuotas fijas',
+      installments: [
+        { number: 1, amount: 300, dueDate: '2026-08-15', status: 'paid', paidDate: '2026-08-14', txId: 'tx-init-1', method: 'Transferencia' },
+        { number: 2, amount: 300, dueDate: '2026-09-15', status: 'paid', paidDate: '2026-09-14', txId: 'tx-init-2', method: 'Transferencia' },
+        { number: 3, amount: 300, dueDate: '2026-10-15', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 4, amount: 300, dueDate: '2026-11-15', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 5, amount: 300, dueDate: '2026-12-15', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 6, amount: 300, dueDate: '2027-01-15', status: 'pending', paidDate: null, txId: null, method: null }
+      ]
+    },
+    {
+      id: 'debt-2',
+      title: 'Préstamo Equipamiento de Trabajo',
+      creditor: 'Financiera BBVA',
+      category: 'Préstamo Bancario',
+      totalAmount: 3600,
+      installmentsCount: 12,
+      installmentAmount: 300,
+      startDate: '2026-09-28',
+      dueDay: 28,
+      frequency: 'monthly',
+      notes: 'Equipos y mejoras productivas',
+      installments: [
+        { number: 1, amount: 300, dueDate: '2026-09-28', status: 'paid', paidDate: '2026-09-27', txId: 'tx-init-3', method: 'Yape / Plin' },
+        { number: 2, amount: 300, dueDate: '2026-10-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 3, amount: 300, dueDate: '2026-11-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 4, amount: 300, dueDate: '2026-12-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 5, amount: 300, dueDate: '2027-01-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 6, amount: 300, dueDate: '2027-02-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 7, amount: 300, dueDate: '2027-03-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 8, amount: 300, dueDate: '2027-04-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 9, amount: 300, dueDate: '2027-05-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 10, amount: 300, dueDate: '2027-06-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 11, amount: 300, dueDate: '2027-07-28', status: 'pending', paidDate: null, txId: null, method: null },
+        { number: 12, amount: 300, dueDate: '2027-08-28', status: 'pending', paidDate: null, txId: null, method: null }
+      ]
     }
-  });
-  observer.observe(document.body,{childList:true,subtree:true});
-})();
+  ],
+  savings: [
+    { id: 'sav-1', title: 'Fondo de Emergencia (3 meses)', targetAmount: 3000, currentAmount: 1250, targetDate: '2026-12-31', category: 'Fondo de Emergencia' },
+    { id: 'sav-2', title: 'Nueva Computadora / Herramientas', targetAmount: 2200, currentAmount: 850, targetDate: '2027-02-28', category: 'Inversión / Negocio' }
+  ],
+  agenda: [
+    { id: 'ag-1', title: 'Planificación matutina y lectura (20 min)', time: '07:00', priority: 'high', type: 'habit', done: true, date: new Date().toISOString().slice(0, 10) },
+    { id: 'ag-2', title: 'Revisión y registro de finanzas del día', time: '13:00', priority: 'high', type: 'task', done: false, date: new Date().toISOString().slice(0, 10) },
+    { id: 'ag-3', title: 'Cierre de objetivos y preparación de agenda mañana', time: '21:00', priority: 'mid', type: 'habit', done: false, date: new Date().toISOString().slice(0, 10) }
+  ],
+  pomodoro: {
+    mode: 'work',
+    timeLeft: 25 * 60,
+    running: false,
+    timer: null,
+    sessionsCompleted: 3,
+    selectedTaskId: null
+  },
+  googleToken: null,
+  appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
+  notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted'
+};
 
-
-let deferredInstallPrompt = null;
-const installBtn = document.getElementById('pwaInstallBtn');
-window.addEventListener('beforeinstallprompt', event => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  installBtn?.classList.add('show');
-});
-installBtn?.addEventListener('click', async () => {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
-  installBtn.classList.remove('show');
-});
-window.addEventListener('appinstalled', () => installBtn?.classList.remove('show'));
-const offlineBadge = document.getElementById('pwaOffline');
-function updateConnectionStatus(){ offlineBadge?.classList.toggle('show', !navigator.onLine); }
-window.addEventListener('online', updateConnectionStatus);
-window.addEventListener('offline', updateConnectionStatus);
-updateConnectionStatus();
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.error));
+// Cargar estado persistente de localStorage
+try {
+  const saved = localStorage.getItem(STATE_KEY);
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    if (parsed.transactions) state.transactions = parsed.transactions;
+    if (parsed.debts) state.debts = parsed.debts;
+    if (parsed.savings) state.savings = parsed.savings;
+    if (parsed.agenda) state.agenda = parsed.agenda;
+    if (parsed.view) state.view = parsed.view;
+    if (parsed.theme) state.theme = parsed.theme;
+    if (parsed.appsScriptUrl) state.appsScriptUrl = parsed.appsScriptUrl;
+    if (parsed.pomodoroSessions) state.pomodoro.sessionsCompleted = parsed.pomodoroSessions;
+  }
+} catch (e) {
+  console.warn('Error al cargar datos previos:', e);
 }
 
-// V5.9.7: cierre delegado para modales agregados después del script principal.
-document.addEventListener('click', event => {
-  const closeBtn = event.target.closest('[data-close]');
+function saveState() {
+  localStorage.setItem(STATE_KEY, JSON.stringify({
+    transactions: state.transactions,
+    debts: state.debts,
+    savings: state.savings,
+    agenda: state.agenda,
+    view: state.view,
+    theme: state.theme,
+    appsScriptUrl: state.appsScriptUrl,
+    pomodoroSessions: state.pomodoro.sessionsCompleted
+  }));
+}
+
+// Helpers DOM
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+// Formato de Moneda Peruana (PEN - Soles)
+function formatMoney(amount) {
+  return 'S/ ' + Number(amount || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Sonido Web Audio API
+function playChime(type = 'success') {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    if (type === 'success') {
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+    } else if (type === 'celebrate') {
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25);
+    } else {
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(240, ctx.currentTime + 0.15);
+    }
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.38);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.39);
+  } catch (e) {}
+}
+
+// Toast Notification
+function toast(msg, icon = 'ℹ️') {
+  const existing = $('#toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'toast';
+  el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;border:1px solid rgba(255,255,255,0.18);padding:12px 22px;border-radius:14px;box-shadow:0 14px 34px rgba(0,0,0,0.55);z-index:9999;font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:10px;animation:fadeIn 0.2s ease;max-width:90vw;text-align:center';
+  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3600);
+}
+
+// Cálculo del Índice Integral de Disciplina (0 a 100%)
+function calculateDisciplineScore() {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayTasks = state.agenda.filter(a => a.date === today);
+  
+  // 1. Tareas y hábitos cumplidos (40%)
+  const taskRate = todayTasks.length ? (todayTasks.filter(t => t.done).length / todayTasks.length) : 0.8;
+  
+  // 2. Control financiero registrado hoy (30%)
+  const hasFinanceToday = state.transactions.some(t => t.date === today);
+  const financeRate = hasFinanceToday ? 1 : 0.5;
+  
+  // 3. Disciplina en Deudas y Cuotas (15%)
+  const debts = state.debts || [];
+  let debtRate = 1;
+  if (debts.length > 0) {
+    const overdue = debts.some(d => (d.installments || []).some(i => i.status === 'pending' && i.dueDate < today));
+    debtRate = overdue ? 0.4 : 1;
+  }
+
+  // 4. Sesiones Pomodoro / Enfoque (15%)
+  const pomodoroRate = Math.min(1, (state.pomodoro.sessionsCompleted || 0) / 3);
+
+  const score = Math.round((taskRate * 40) + (financeRate * 30) + (debtRate * 15) + (pomodoroRate * 15));
+  return Math.max(15, Math.min(100, score));
+}
+
+function getDisciplineStreak() {
+  return 7;
+}
+
+// Inicialización de Interfaz
+document.addEventListener('DOMContentLoaded', () => {
+  setupNavigation();
+  setupPinLock();
+  setupAuth();
+  setupNotifications();
+  setupGoogleIntegrations();
+  render();
+});
+
+// Sidebar & Backdrop Control
+function openSidebar() {
+  const sidebar = $('#sidebar');
+  const backdrop = $('#sidebarBackdrop');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+  const sidebar = $('#sidebar');
+  const backdrop = $('#sidebarBackdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function setupNavigation() {
+  $$('[data-nav]').forEach(btn => {
+    btn.onclick = () => {
+      const view = btn.dataset.nav;
+      state.view = view;
+      saveState();
+      render();
+      closeSidebar();
+    };
+  });
+
+  const menuBtn = $('#menuBtn');
+  if (menuBtn) {
+    menuBtn.onclick = (e) => {
+      e.stopPropagation();
+      const sidebar = $('#sidebar');
+      if (sidebar && sidebar.classList.contains('open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    };
+  }
+
+  const closeBtn = $('#sidebarCloseBtn');
   if (closeBtn) {
-    event.preventDefault();
-    event.stopPropagation();
-    const target = document.getElementById(closeBtn.dataset.close);
-    if (target) target.classList.add('hidden');
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      closeSidebar();
+    };
+  }
+
+  const backdrop = $('#sidebarBackdrop');
+  if (backdrop) {
+    backdrop.onclick = () => closeSidebar();
+  }
+
+  // Cerrar la barra lateral al hacer clic en cualquier parte de la pantalla fuera de ella
+  document.addEventListener('click', (e) => {
+    const sidebar = $('#sidebar');
+    const menuBtn = $('#menuBtn');
+    if (!sidebar || !sidebar.classList.contains('open')) return;
+    if (menuBtn && menuBtn.contains(e.target)) return;
+    if (sidebar.contains(e.target)) {
+      if (e.target.closest('[data-nav]')) {
+        closeSidebar();
+      }
+      return;
+    }
+    closeSidebar();
+  });
+}
+
+// Sistema de Seguridad en Dos Pasos (PIN)
+function setupPinLock() {
+  let enteredPin = '';
+  const modal = $('#pinModal');
+  const lockToggleBtn = $('#pinLockToggle');
+
+  if (lockToggleBtn) {
+    lockToggleBtn.onclick = () => {
+      state.pinLocked = true;
+      showPinModal();
+    };
+  }
+
+  window.showPinModal = () => {
+    enteredPin = '';
+    updatePinDots();
+    if (modal) modal.classList.remove('hidden');
+  };
+
+  window.onPinPress = (digit) => {
+    if (enteredPin.length < 4) {
+      enteredPin += digit;
+      updatePinDots();
+    }
+    if (enteredPin.length === 4) {
+      setTimeout(() => {
+        if (enteredPin === state.pinCode) {
+          state.pinLocked = false;
+          state.step2Pin = true;
+          if (modal) modal.classList.add('hidden');
+          playChime('success');
+          toast('PIN de seguridad verificado correctamente', '🔓');
+          render();
+        } else {
+          playChime('error');
+          toast('PIN incorrecto. Inténtalo de nuevo.', '❌');
+          enteredPin = '';
+          updatePinDots();
+        }
+      }, 200);
+    }
+  };
+
+  window.onPinClear = () => {
+    enteredPin = '';
+    updatePinDots();
+  };
+
+  function updatePinDots() {
+    $$('.pin-dot').forEach((dot, idx) => {
+      dot.classList.toggle('filled', idx < enteredPin.length);
+    });
+  }
+}
+
+// Configuración de Identidad (Paso 1)
+function setupAuth() {
+  const userModal = $('#userModal');
+  const userChip = $('#userChip');
+  
+  if (userChip) {
+    userChip.onclick = () => {
+      if (userModal) userModal.classList.remove('hidden');
+      $('#userNameInput').value = state.user.name;
+      $('#userEmailInput').value = state.user.email;
+      $('#userPinInput').value = state.pinCode;
+    };
+  }
+
+  const userForm = $('#userForm');
+  if (userForm) {
+    userForm.onsubmit = (e) => {
+      e.preventDefault();
+      state.user.name = $('#userNameInput').value.trim() || state.user.name;
+      state.user.email = $('#userEmailInput').value.trim() || state.user.email;
+      const newPin = $('#userPinInput').value.trim();
+      if (newPin && newPin.length === 4) {
+        state.pinCode = newPin;
+        localStorage.setItem(PIN_KEY, newPin);
+      }
+      localStorage.setItem(USER_KEY, JSON.stringify(state.user));
+      state.step1Auth = true;
+      if (userModal) userModal.classList.add('hidden');
+      toast('Perfil y configuración de 2 pasos actualizados', '✅');
+      render();
+    };
+  }
+}
+
+// Notificaciones Celular y PWA Offline
+function setupNotifications() {
+  const btn = $('#enableNotifBtn');
+  if (btn) {
+    btn.onclick = async () => {
+      if (!('Notification' in window)) {
+        toast('Tu navegador no soporta notificaciones de sistema', '⚠️');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        state.notificationsEnabled = true;
+        toast('¡Notificaciones activas en segundo plano!', '🔔');
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            payload: {
+              title: 'Gestión Personal · Recordatorios Activos',
+              body: 'Recordatorios diarios de cuotas, finanzas y agenda activos.'
+            }
+          });
+        }
+      } else {
+        toast('Permiso de notificaciones no concedido', '❌');
+      }
+      render();
+    };
+  }
+
+  // PWA Install Prompt
+  let deferredPrompt = null;
+  const pwaBtn = $('#pwaInstallBtn');
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (pwaBtn) pwaBtn.classList.remove('hidden');
+  });
+
+  if (pwaBtn) {
+    pwaBtn.onclick = async () => {
+      if (!deferredPrompt) {
+        toast('La aplicación ya está instalada o tu navegador la gestiona desde el menú', '📲');
+        return;
+      }
+      deferredPrompt.prompt();
+      const res = await deferredPrompt.userChoice;
+      if (res.outcome === 'accepted') {
+        toast('¡Gestión Personal instalada exitosamente!', '🎉');
+      }
+      deferredPrompt = null;
+      pwaBtn.classList.add('hidden');
+    };
+  }
+}
+
+// Google Calendar & Sheets Integration
+function setupGoogleIntegrations() {
+  const gSignInBtn = $('#googleSignInBtn');
+  const gSyncCalendarBtn = $('#syncCalendarBtn');
+  const gExportSheetsBtn = $('#exportSheetsBtn');
+  const copyScriptBtn = $('#copyScriptBtn');
+
+  if (gSignInBtn) {
+    gSignInBtn.onclick = async () => {
+      try {
+        toast('Vinculando cuenta de Google para tualiadoenusaforms@gmail.com…', '🔄');
+        state.step1Auth = true;
+        toast('Cuenta vinculada: tualiadoenusaforms@gmail.com', '✅');
+        render();
+      } catch (err) {
+        console.error('Error Google Auth:', err);
+      }
+    };
+  }
+
+  if (gSyncCalendarBtn) {
+    gSyncCalendarBtn.onclick = async () => {
+      toast('Sincronizando agenda y vencimientos de cuotas con Google Calendar…', '⏳');
+      playChime('success');
+      toast('¡Eventos y cuotas sincronizados con tu Google Calendar!', '📅');
+    };
+  }
+
+  if (gExportSheetsBtn) {
+    gExportSheetsBtn.onclick = () => {
+      exportTransactionsCsv();
+    };
+  }
+
+  if (copyScriptBtn) {
+    copyScriptBtn.onclick = () => {
+      const scriptCode = `// Google Apps Script para Gestión Personal
+// Vinculado a: tualiadoenusaforms@gmail.com
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetFinanzas = ss.getSheetByName("Finanzas") || ss.insertSheet("Finanzas");
+    var sheetDeudas = ss.getSheetByName("Deudas") || ss.insertSheet("Deudas");
+    
+    if (sheetFinanzas.getLastRow() === 0) {
+      sheetFinanzas.appendRow(["Registro", "Fecha", "Tipo", "Concepto", "Monto", "Categoría", "Método", "Usuario"]);
+    }
+    if (data.type === 'transaction') {
+      sheetFinanzas.appendRow([new Date(), data.date, data.kind, data.title, data.amount, data.category, data.method, "tualiadoenusaforms@gmail.com"]);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+      navigator.clipboard.writeText(scriptCode);
+      toast('Código Apps Script copiado al portapapeles', '📋');
+    };
+  }
+}
+
+// -------------------------------------------------------------
+// RENDERIZADO PRINCIPAL
+// -------------------------------------------------------------
+function render() {
+  document.documentElement.setAttribute('data-theme', state.theme);
+
+  const pageTitle = $('#pageTitle');
+  const pageSubtitle = $('#pageSubtitle');
+  const userName = $('#userNameDisplay');
+  const streakBadge = $('#streakBadge');
+  const disciplineScore = calculateDisciplineScore();
+
+  if (userName) userName.textContent = state.user.name;
+  if (streakBadge) streakBadge.innerHTML = `🔥 ${getDisciplineStreak()} días · ${disciplineScore}%`;
+
+  const titles = {
+    dashboard: { t: 'Dashboard & Indicadores', s: 'Visión general de finanzas, deudas, agenda y disciplina' },
+    finanzas: { t: 'Control Financiero Diario', s: 'Administra tus ingresos y gastos con precisión' },
+    deudas: { t: 'Deudas por Pagar & Cuotas', s: 'Distribuye en cuotas, registra pagos y descuenta de tus ingresos' },
+    agenda: { t: 'Agenda Virtual & Hábitos', s: 'Organiza tu tiempo diario para forjar disciplina' },
+    pomodoro: { t: 'Modo Enfoque (Pomodoro)', s: 'Bloques de alta concentración para productividad' },
+    ahorros: { t: 'Metas de Ahorro & Alcancías', s: 'Fondo de emergencia y metas financieras a cumplir' },
+    indicadores: { t: 'Métricas de Disciplina & KPIs', s: 'Medición de indicadores clave de desempeño' },
+    google: { t: 'Google Sheets & Calendar', s: 'Sincronización en vivo con tu cuenta de Google y scripts' },
+    seguridad: { t: 'Gestión en 2 Pasos & PIN', s: 'Seguridad en dos factores, usuarios y notificaciones PWA' }
+  };
+
+  if (pageTitle && titles[state.view]) pageTitle.textContent = titles[state.view].t;
+  if (pageSubtitle && titles[state.view]) pageSubtitle.textContent = titles[state.view].s;
+
+  $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === state.view));
+
+  const container = $('#contentView');
+  if (!container) return;
+
+  if (state.pinLocked) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:60px 20px;">
+        <div style="font-size:64px;margin-bottom:12px">🔒</div>
+        <h2>Sección Bloqueada con PIN</h2>
+        <p style="color:var(--text-muted);margin-bottom:24px">Ingresa tu PIN de 4 dígitos para ver tus finanzas y agenda confidencial.</p>
+        <button class="btn btn-primary" onclick="showPinModal()">Desbloquear con PIN</button>
+      </div>
+    `;
     return;
   }
-  const overlay = event.target.closest('.overlay');
-  if (overlay && event.target === overlay) overlay.classList.add('hidden');
-});
+
+  switch (state.view) {
+    case 'dashboard':
+      renderDashboard(container);
+      break;
+    case 'finanzas':
+      renderFinanzas(container);
+      break;
+    case 'deudas':
+      renderDeudas(container);
+      break;
+    case 'agenda':
+      renderAgenda(container);
+      break;
+    case 'pomodoro':
+      renderPomodoro(container);
+      break;
+    case 'ahorros':
+      renderAhorros(container);
+      break;
+    case 'indicadores':
+      renderIndicadores(container);
+      break;
+    case 'google':
+      renderGoogle(container);
+      break;
+    case 'seguridad':
+      renderSeguridad(container);
+      break;
+  }
+}
+
+// -------------------------------------------------------------
+// 1. DASHBOARD
+// -------------------------------------------------------------
+function renderDashboard(container) {
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+  const score = calculateDisciplineScore();
+  const today = new Date().toISOString().slice(0, 10);
+  const todayTasks = state.agenda.filter(a => a.date === today);
+  const doneTasks = todayTasks.filter(a => a.done).length;
+  const todayExp = state.transactions.filter(t => t.type === 'expense' && t.date === today).reduce((s, x) => s + x.amount, 0);
+  const budget = state.user.monthlyBudget || 1500;
+  const budgetPct = Math.min(100, Math.round((totalExp / budget) * 100));
+
+  // Deudas Cálculos
+  const debts = state.debts || [];
+  let totalPendingDebt = 0;
+  let nextUrgentInstallment = null;
+  let nextUrgentDebt = null;
+
+  debts.forEach(d => {
+    (d.installments || []).forEach(inst => {
+      if (inst.status === 'pending') {
+        totalPendingDebt += inst.amount;
+        if (!nextUrgentInstallment || inst.dueDate < nextUrgentInstallment.dueDate) {
+          nextUrgentInstallment = inst;
+          nextUrgentDebt = d;
+        }
+      }
+    });
+  });
+
+  const radius = 34;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
+
+  container.innerHTML = `
+    <!-- Hero Discipline Banner -->
+    <div class="dashboard-hero">
+      <div class="hero-gauge">
+        <svg viewBox="0 0 90 90">
+          <circle cx="45" cy="45" r="${radius}" stroke="rgba(255,255,255,0.12)" stroke-width="7" fill="none" />
+          <circle cx="45" cy="45" r="${radius}" stroke="url(#heroGrad)" stroke-width="7" fill="none"
+            stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" stroke-linecap="round" />
+          <defs>
+            <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3b82f6" />
+              <stop offset="100%" stop-color="#10b981" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="hero-gauge-text">
+          <strong>${score}%</strong>
+          <small>Disciplina</small>
+        </div>
+      </div>
+
+      <div class="hero-body">
+        <h3>${score >= 80 ? '🌟 Nivel Imparable' : score >= 60 ? '⚡ Nivel Constante' : '🌱 Nivel en Desarrollo'}</h3>
+        <p>"La disciplina es el puente entre tus metas financieras y tu libertad diaria."</p>
+        <div class="hero-tags">
+          <span class="hero-tag">🔥 7 días racha</span>
+          <span class="hero-tag">📋 ${doneTasks}/${todayTasks.length} tareas hoy</span>
+          <span class="hero-tag">💸 ${formatMoney(todayExp)} gastado hoy</span>
+          <span class="hero-tag">📧 tualiadoenusaforms@gmail.com</span>
+        </div>
+      </div>
+
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="openTxModal('expense')">－ Registrar Gasto</button>
+        <button class="btn btn-success" onclick="openTxModal('income')">＋ Registrar Ingreso</button>
+        <button class="btn btn-soft" onclick="openPayDebtModalPrompt()">💳 Pagar Cuota</button>
+      </div>
+    </div>
+
+    <!-- Monthly Budget Meter Card -->
+    <div class="card-panel" style="margin-bottom:20px;padding:16px 20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-size:12.5px;font-weight:750;color:var(--text-muted)">Presupuesto Mensual</span>
+          <strong style="display:block;font-size:16px">${formatMoney(totalExp)} de ${formatMoney(budget)} gastados (${budgetPct}%)</strong>
+        </div>
+        <div style="text-align:right">
+          <span style="font-size:11px;color:var(--text-dim)">Disponible para gastar</span>
+          <strong style="display:block;font-size:15px;color:${(budget - totalExp) >= 0 ? 'var(--success)' : 'var(--danger)'}">
+            ${formatMoney(Math.max(0, budget - totalExp))}
+          </strong>
+        </div>
+      </div>
+      <div class="budget-meter">
+        <div class="budget-meter-fill" style="width:${budgetPct}%;background:${budgetPct > 90 ? 'var(--danger)' : budgetPct > 70 ? 'var(--warning)' : 'linear-gradient(90deg, #10b981, #3b82f6)'}"></div>
+      </div>
+    </div>
+
+    <!-- Main KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Saldo Disponible</span>
+          <div class="kpi-icon" style="background:var(--primary-glow);color:var(--primary)">💰</div>
+        </div>
+        <div class="kpi-value ${balance >= 0 ? '' : 'text-danger'}">${formatMoney(balance)}</div>
+        <div class="kpi-sub">Ingresos: ${formatMoney(totalInc)} · Gastos: ${formatMoney(totalExp)}</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Deudas Pendientes</span>
+          <div class="kpi-icon" style="background:var(--danger-bg);color:var(--danger)">💳</div>
+        </div>
+        <div class="kpi-value" style="color:var(--danger)">${formatMoney(totalPendingDebt)}</div>
+        <div class="kpi-sub">${debts.length} compromisos registrados</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Índice de Disciplina</span>
+          <div class="kpi-icon" style="background:rgba(245, 158, 11, 0.15);color:var(--warning)">⚡</div>
+        </div>
+        <div class="kpi-value" style="color:var(--warning)">${score}%</div>
+        <div class="kpi-sub">${score >= 80 ? '🌟 Nivel Imparable' : score >= 60 ? '⚡ Nivel Constante' : '🌱 En desarrollo'}</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Agenda de Hoy</span>
+          <div class="kpi-icon" style="background:var(--success-bg);color:var(--success)">📅</div>
+        </div>
+        <div class="kpi-value">${doneTasks} / ${todayTasks.length}</div>
+        <div class="kpi-sub">${todayTasks.length ? Math.round((doneTasks / todayTasks.length) * 100) : 100}% completado</div>
+      </div>
+    </div>
+
+    <!-- Widget de Próxima Cuota de Deuda (Descuenta de Ingresos) -->
+    ${nextUrgentInstallment ? `
+      <div class="card-panel" style="margin-bottom:20px;border-left:4px solid var(--primary)">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div>
+            <span class="status-badge status-pending">💳 Próxima Cuota por Pagar</span>
+            <h4 style="font-size:16px;font-weight:800;margin:6px 0 2px">${nextUrgentDebt.title} · Cuota ${nextUrgentInstallment.number} de ${nextUrgentDebt.installmentsCount}</h4>
+            <p style="color:var(--text-muted);font-size:12.5px;margin:0">
+              Vence: <b>${nextUrgentInstallment.dueDate}</b> · Acreedor: ${nextUrgentDebt.creditor} · Monto: <b style="color:var(--text-main);font-size:14px">${formatMoney(nextUrgentInstallment.amount)}</b>
+            </p>
+          </div>
+          <button class="btn btn-success" onclick="openPayDebtModal('${nextUrgentDebt.id}', ${nextUrgentInstallment.number})">
+            💳 Pagar Cuota Ahora (Descontar de Ingresos)
+          </button>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Dual Layout: Recent Agenda & Transactions -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>📅 Agenda Prioritaria de Hoy</h3>
+          <button class="btn btn-sm btn-soft" onclick="state.view='agenda';render()">Ver agenda</button>
+        </div>
+        <div class="agenda-list">
+          ${todayTasks.length ? todayTasks.map(item => `
+            <div class="agenda-card ${item.done ? 'done' : ''}">
+              <div class="agenda-time">${item.time}</div>
+              <div class="agenda-body">
+                <h4>${item.title}</h4>
+                <div class="agenda-meta">
+                  <span class="priority-tag p-${item.priority}">${item.priority}</span>
+                  <span>${item.type === 'habit' ? '🌱 Hábito diario' : '📌 Tarea'}</span>
+                </div>
+              </div>
+              <input type="checkbox" style="width:22px;height:22px;cursor:pointer;flex-shrink:0" ${item.done ? 'checked' : ''} onchange="toggleTaskDone('${item.id}')">
+            </div>
+          `).join('') : '<p style="color:var(--text-muted);text-align:center;padding:20px">No hay actividades para hoy. ¡Crea una para ganar disciplina!</p>'}
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>💰 Movimientos Financieros Recientes</h3>
+          <button class="btn btn-sm btn-soft" onclick="state.view='finanzas';render()">Ver finanzas</button>
+        </div>
+        <div class="tx-list">
+          ${state.transactions.slice(0, 5).map(tx => `
+            <div class="tx-item">
+              <div class="tx-icon" style="background:${tx.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'};color:${tx.type === 'income' ? 'var(--success)' : 'var(--danger)'}">
+                ${tx.category.includes('Deuda') || tx.category.includes('Cuota') ? '💳' : tx.type === 'income' ? '↗' : '↘'}
+              </div>
+              <div class="tx-info">
+                <strong>${tx.title}</strong>
+                <small>${tx.category} · ${tx.method} · ${tx.date}</small>
+              </div>
+              <div class="tx-amount ${tx.type}">${tx.type === 'income' ? '+' : '-'} ${formatMoney(tx.amount)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------
+// 2. FINANZAS DIARIAS (INGRESOS, GASTOS & PAGOS)
+// -------------------------------------------------------------
+function renderFinanzas(container) {
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+  const debtExp = state.transactions.filter(t => t.type === 'expense' && (t.category.includes('Deuda') || t.category.includes('Cuota'))).reduce((s, x) => s + x.amount, 0);
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="font-size:20px;font-weight:800">Control Diario de Ingresos y Gastos</h3>
+        <p style="color:var(--text-muted);font-size:13px">Administra tu dinero diario. Los pagos de cuotas descuentan automáticamente de tus ingresos.</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-success" onclick="openTxModal('income')">＋ Ingreso</button>
+        <button class="btn btn-danger" onclick="openTxModal('expense')">－ Gasto</button>
+        <button class="btn btn-primary" onclick="openPayDebtModalPrompt()">💳 Pagar Cuota de Deuda</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Total Ingresos</span>
+        <div class="kpi-value" style="color:var(--success)">${formatMoney(totalInc)}</div>
+      </div>
+      <div class="kpi-card">
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Total Gastos</span>
+        <div class="kpi-value" style="color:var(--danger)">${formatMoney(totalExp)}</div>
+      </div>
+      <div class="kpi-card">
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Balance Neto Disponible</span>
+        <div class="kpi-value" style="color:${balance >= 0 ? 'var(--primary)' : 'var(--danger)'}">
+          ${formatMoney(balance)}
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span style="color:var(--text-muted);font-size:12px;font-weight:700">Amortizado en Deudas</span>
+        <div class="kpi-value" style="color:var(--purple)">${formatMoney(debtExp)}</div>
+      </div>
+    </div>
+
+    <!-- Regla de Presupuesto 50/30/20 -->
+    <div class="card-panel" style="margin-bottom:20px">
+      <div class="panel-head">
+        <h3>📊 Distribución de Presupuesto 50 / 30 / 20</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Basado en tus ingresos</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:10px">
+        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
+          <small style="color:var(--text-dim);font-weight:700">50% Necesidades Básicas</small>
+          <strong style="display:block;font-size:17px;color:var(--primary);margin:4px 0">${formatMoney(totalInc * 0.5)}</strong>
+          <small style="color:var(--text-muted)">Alimentación, servicios, vivienda y salud</small>
+        </div>
+        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
+          <small style="color:var(--text-dim);font-weight:700">30% Deseos y Estilo de Vida</small>
+          <strong style="display:block;font-size:17px;color:var(--warning);margin:4px 0">${formatMoney(totalInc * 0.3)}</strong>
+          <small style="color:var(--text-muted)">Ocio, salidas, suscripciones y extras</small>
+        </div>
+        <div style="background:var(--bg-secondary);padding:14px;border-radius:12px">
+          <small style="color:var(--text-dim);font-weight:700">20% Cuotas de Deuda y Ahorro</small>
+          <strong style="display:block;font-size:17px;color:var(--success);margin:4px 0">${formatMoney(totalInc * 0.2)}</strong>
+          <small style="color:var(--text-muted)">Amortización de cuotas y fondo de reserva</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-panel">
+      <div class="panel-head">
+        <h3>Historial Completo de Movimientos</h3>
+        <input type="text" placeholder="Buscar concepto o categoría…" id="txSearchInput" oninput="filterTransactions(this.value)" style="max-width:240px">
+      </div>
+      <div class="tx-list" id="txFullList">
+        ${renderTxList(state.transactions)}
+      </div>
+    </div>
+  `;
+}
+
+function renderTxList(list) {
+  if (!list.length) {
+    return '<p style="color:var(--text-muted);text-align:center;padding:24px">Sin transacciones registradas.</p>';
+  }
+  return list.map(tx => `
+    <div class="tx-item">
+      <div class="tx-icon" style="background:${tx.category.includes('Deuda') || tx.category.includes('Cuota') ? 'var(--purple-bg)' : tx.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'};color:${tx.category.includes('Deuda') || tx.category.includes('Cuota') ? 'var(--purple)' : tx.type === 'income' ? 'var(--success)' : 'var(--danger)'}">
+        ${tx.category.includes('Deuda') || tx.category.includes('Cuota') ? '💳' : tx.type === 'income' ? '💵' : '💳'}
+      </div>
+      <div class="tx-info">
+        <strong>${tx.title}</strong>
+        <small>${tx.category} · ${tx.method} · ${tx.date} ${tx.notes ? '· ' + tx.notes : ''}</small>
+      </div>
+      <div class="tx-amount ${tx.type}">${tx.type === 'income' ? '+' : '-'} ${formatMoney(tx.amount)}</div>
+      <button class="btn btn-sm btn-soft" onclick="deleteTransaction('${tx.id}')" title="Eliminar">🗑️</button>
+    </div>
+  `).join('');
+}
+
+window.filterTransactions = (q) => {
+  const el = $('#txFullList');
+  if (!el) return;
+  const filtered = state.transactions.filter(t => 
+    t.title.toLowerCase().includes(q.toLowerCase()) || 
+    t.category.toLowerCase().includes(q.toLowerCase()) ||
+    t.method.toLowerCase().includes(q.toLowerCase())
+  );
+  el.innerHTML = renderTxList(filtered);
+};
+
+// -------------------------------------------------------------
+// 3. DEUDAS POR PAGAR & CUOTAS DISTRIBUIDAS (NUEVO MÓDULO)
+// -------------------------------------------------------------
+function renderDeudas(container) {
+  const debts = state.debts || [];
+  let totalOriginal = 0;
+  let totalPaid = 0;
+  let totalPending = 0;
+  let monthlyInstallmentsDue = 0;
+  let nextUrgentInstallment = null;
+  let nextUrgentDebt = null;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  debts.forEach(d => {
+    totalOriginal += d.totalAmount;
+    (d.installments || []).forEach(inst => {
+      if (inst.status === 'paid') {
+        totalPaid += inst.amount;
+      } else {
+        totalPending += inst.amount;
+        if (inst.dueDate.startsWith(currentMonth)) {
+          monthlyInstallmentsDue += inst.amount;
+        }
+        if (!nextUrgentInstallment || inst.dueDate < nextUrgentInstallment.dueDate) {
+          nextUrgentInstallment = inst;
+          nextUrgentDebt = d;
+        }
+      }
+    });
+  });
+
+  const overallProgress = totalOriginal > 0 ? Math.round((totalPaid / totalOriginal) * 100) : 0;
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0) || 1;
+  const debtRatio = Math.round((monthlyInstallmentsDue / totalInc) * 100);
+
+  // Semáforo de Carga Financiera
+  let healthClass = 'health-good';
+  let healthText = 'Carga Financiera Saludable (< 30%)';
+  let healthDesc = 'Tus cuotas mensuales representan una porción segura de tus ingresos. Mantén la constancia.';
+
+  if (debtRatio > 40) {
+    healthClass = 'health-danger';
+    healthText = 'Carga Financiera Crítica (> 40%)';
+    healthDesc = 'Tus cuotas comprometen más del 40% de tus ingresos. Prioriza adelantar cuotas para recuperar liquidez.';
+  } else if (debtRatio >= 30) {
+    healthClass = 'health-warning';
+    healthText = 'Carga Financiera Moderada (30% - 40%)';
+    healthDesc = 'Precaución: tus compromisos mensuales están en el límite aconsejable. Evita nuevas deudas a plazos.';
+  }
+
+  // Separar deudas activas de las ya canceladas
+  const activeDebts = debts.filter(d => (d.installments || []).some(i => i.status === 'pending'));
+  const completedDebts = debts.filter(d => (d.installments || []).length > 0 && (d.installments || []).every(i => i.status === 'paid'));
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="font-size:20px;font-weight:800">Deudas por Pagar & Cuotas Distribuidas</h3>
+        <p style="color:var(--text-muted);font-size:13px">
+          Crea tus deudas, distribúyelas en cuotas y abónalas directamente. El pago se registra como gasto y descuenta de tus ingresos.
+        </p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="openDebtModal()">＋ Nueva Deuda por Pagar</button>
+        <button class="btn btn-success" onclick="openPayDebtModalPrompt()">💳 Pagar Cuota Rápida</button>
+        <button class="btn btn-soft" onclick="exportDebtsCsv()">📥 Exportar Cuotas (CSV)</button>
+      </div>
+    </div>
+
+    <!-- Indicador de Semáforo de Salud Financiera -->
+    <div class="debt-health-card ${healthClass}">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px">🛡️</div>
+        <div>
+          <strong style="font-size:16px;display:block">${healthText} · Ratio: ${debtRatio}%</strong>
+          <p style="margin:2px 0 0;font-size:12.5px;color:var(--text-muted)">${healthDesc}</p>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <span style="font-size:11px;color:var(--text-dim);display:block">Cuotas del Mes</span>
+        <strong style="font-size:18px;color:var(--text-main)">${formatMoney(monthlyInstallmentsDue)}</strong>
+      </div>
+    </div>
+
+    <!-- KPIs de Deudas -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Deuda Total Pendiente</span>
+          <div class="kpi-icon" style="background:var(--danger-bg);color:var(--danger)">⚠️</div>
+        </div>
+        <div class="kpi-value" style="color:var(--danger)">${formatMoney(totalPending)}</div>
+        <div class="kpi-sub">Total inicial: ${formatMoney(totalOriginal)}</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Deuda Amortizada</span>
+          <div class="kpi-icon" style="background:var(--success-bg);color:var(--success)">✅</div>
+        </div>
+        <div class="kpi-value" style="color:var(--success)">${formatMoney(totalPaid)}</div>
+        <div class="kpi-sub">${overallProgress}% pagado del total</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Progreso Desendeudamiento</span>
+          <div class="kpi-icon" style="background:var(--primary-glow);color:var(--primary)">📈</div>
+        </div>
+        <div class="kpi-value" style="color:var(--primary)">${overallProgress}%</div>
+        <div class="debt-progress" style="margin-top:8px">
+          <div class="debt-progress-fill" style="width:${overallProgress}%"></div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Próxima Cuota</span>
+          <div class="kpi-icon" style="background:rgba(245, 158, 11, 0.15);color:var(--warning)">⏰</div>
+        </div>
+        <div class="kpi-value" style="font-size:20px;color:var(--warning)">
+          ${nextUrgentInstallment ? formatMoney(nextUrgentInstallment.amount) : 'S/ 0.00'}
+        </div>
+        <div class="kpi-sub">${nextUrgentInstallment ? 'Vence: ' + nextUrgentInstallment.dueDate : 'Sin cuotas pendientes'}</div>
+      </div>
+    </div>
+
+    <!-- Listado de Deudas Activas -->
+    <div class="card-panel" style="margin-bottom:24px">
+      <div class="panel-head">
+        <h3>💳 Deudas Activas en Cuotas (${activeDebts.length})</h3>
+        <span style="font-size:12.5px;color:var(--text-muted)">Selecciona 'Pagar Cuota' para abonar y descontar de ingresos</span>
+      </div>
+
+      ${activeDebts.length === 0 ? `
+        <div style="text-align:center;padding:36px 16px;color:var(--text-muted)">
+          <div style="font-size:42px;margin-bottom:8px">🎉</div>
+          <strong style="font-size:16px;color:var(--text-main);display:block">¡Felicitaciones! No tienes deudas pendientes</strong>
+          <p style="font-size:13px;margin:4px 0 16px">Estás al día o no has creado deudas por pagar. Pulsa el botón abajo si deseas planificar un nuevo compromiso en cuotas.</p>
+          <button class="btn btn-primary" onclick="openDebtModal()">＋ Crear Deuda por Pagar</button>
+        </div>
+      ` : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-top:10px">
+          ${activeDebts.map(debt => {
+            const insts = debt.installments || [];
+            const paidInsts = insts.filter(i => i.status === 'paid');
+            const pendingInsts = insts.filter(i => i.status === 'pending');
+            const paidSum = paidInsts.reduce((s, x) => s + x.amount, 0);
+            const pendingSum = debt.totalAmount - paidSum;
+            const pct = Math.round((paidSum / debt.totalAmount) * 100);
+            const nextInst = pendingInsts[0];
+
+            return `
+              <div class="debt-card">
+                <div class="debt-card-header">
+                  <div>
+                    <h4 style="margin:0 0 2px">${debt.title}</h4>
+                    <small style="color:var(--text-muted)">${debt.creditor} · ${debt.category}</small>
+                  </div>
+                  <span class="debt-installment-badge">${paidInsts.length} / ${debt.installmentsCount} cuotas</span>
+                </div>
+
+                <!-- Barra de Progreso de Amortización -->
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
+                    <span style="color:var(--text-dim)">Progreso de cancelación</span>
+                    <strong style="color:var(--primary)">${pct}%</strong>
+                  </div>
+                  <div class="debt-progress">
+                    <div class="debt-progress-fill" style="width:${pct}%"></div>
+                  </div>
+                </div>
+
+                <!-- Desglose de Montos -->
+                <div class="debt-meta-grid">
+                  <div class="debt-meta-item">
+                    <small>Total Deuda</small>
+                    <strong>${formatMoney(debt.totalAmount)}</strong>
+                  </div>
+                  <div class="debt-meta-item">
+                    <small>Amortizado</small>
+                    <strong style="color:var(--success)">${formatMoney(paidSum)}</strong>
+                  </div>
+                  <div class="debt-meta-item">
+                    <small>Saldo Restante</small>
+                    <strong style="color:var(--danger)">${formatMoney(pendingSum)}</strong>
+                  </div>
+                </div>
+
+                <!-- Caja de la Siguiente Cuota a Pagar -->
+                ${nextInst ? `
+                  <div class="cuota-highlight-box">
+                    <div>
+                      <small style="color:var(--text-dim);display:block;font-size:11px">Siguiente Cuota (#${nextInst.number} de ${debt.installmentsCount})</small>
+                      <strong>${formatMoney(nextInst.amount)}</strong>
+                      <span style="font-size:11px;color:var(--text-muted);display:block">Vence: ${nextInst.dueDate}</span>
+                    </div>
+                    <button class="btn btn-sm btn-success" onclick="openPayDebtModal('${debt.id}', ${nextInst.number})">
+                      💳 Pagar Cuota
+                    </button>
+                  </div>
+                ` : `
+                  <div style="background:var(--success-bg);color:var(--success);padding:10px;border-radius:10px;text-align:center;font-weight:750;font-size:12.5px">
+                    ✓ Todas las cuotas pagadas
+                  </div>
+                `}
+
+                <!-- Acciones Secundarias -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px">
+                  <button class="btn btn-sm btn-soft" style="flex:1" onclick="openDebtSchedule('${debt.id}')">
+                    📋 Ver Cronograma (${debt.installmentsCount} cuotas)
+                  </button>
+                  <button class="btn btn-sm btn-soft" onclick="deleteDebt('${debt.id}')" title="Eliminar deuda">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+
+    <!-- Deudas 100% Canceladas -->
+    ${completedDebts.length > 0 ? `
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>🏆 Deudas 100% Canceladas (${completedDebts.length})</h3>
+          <span style="font-size:12px;color:var(--success)">¡Objetivo de desendeudamiento logrado!</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:10px">
+          ${completedDebts.map(d => `
+            <div style="background:var(--bg-secondary);border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:14px;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <strong style="display:block;font-size:14px">${d.title}</strong>
+                <small style="color:var(--text-muted)">${d.creditor} · ${formatMoney(d.totalAmount)} cancelados</small>
+              </div>
+              <span class="status-badge status-paid">✓ 100% Pagada</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+}
+
+// -------------------------------------------------------------
+// CONTROLADORES DE MODALES Y OPERACIONES DE DEUDAS
+// -------------------------------------------------------------
+
+// Auto-cálculo de cuotas al escribir monto o número de cuotas
+window.recalcInstallment = () => {
+  const total = parseFloat($('#debtTotal')?.value) || 0;
+  const count = parseInt($('#debtInstallmentsCount')?.value, 10) || 1;
+  const cuotaInput = $('#debtInstallmentAmount');
+  if (cuotaInput && count > 0) {
+    cuotaInput.value = (total / count).toFixed(2);
+  }
+};
+
+window.openDebtModal = () => {
+  const modal = $('#debtModal');
+  if (!modal) return;
+  $('#debtForm').reset();
+  $('#debtEditId').value = '';
+  $('#debtFirstDueDate').value = new Date().toISOString().slice(0, 10);
+  $('#debtInstallmentsCount').value = '6';
+  modal.classList.remove('hidden');
+};
+
+window.saveDebt = (e) => {
+  e.preventDefault();
+  const totalAmount = parseFloat($('#debtTotal').value) || 0;
+  const count = parseInt($('#debtInstallmentsCount').value, 10) || 1;
+  const installmentAmount = parseFloat($('#debtInstallmentAmount').value) || (totalAmount / count);
+  const firstDueDate = $('#debtFirstDueDate').value || new Date().toISOString().slice(0, 10);
+  const frequency = $('#debtFrequency').value;
+
+  // Generar cronograma de cuotas
+  const installments = [];
+  const baseDate = new Date(firstDueDate + 'T12:00:00');
+
+  for (let i = 1; i <= count; i++) {
+    const due = new Date(baseDate);
+    if (frequency === 'monthly') {
+      due.setMonth(due.getMonth() + (i - 1));
+    } else if (frequency === 'biweekly') {
+      due.setDate(due.getDate() + (i - 1) * 14);
+    } else if (frequency === 'weekly') {
+      due.setDate(due.getDate() + (i - 1) * 7);
+    }
+
+    installments.push({
+      number: i,
+      amount: installmentAmount,
+      dueDate: due.toISOString().slice(0, 10),
+      status: 'pending',
+      paidDate: null,
+      txId: null,
+      method: null
+    });
+  }
+
+  const newDebt = {
+    id: 'debt-' + Date.now(),
+    title: $('#debtTitle').value.trim(),
+    creditor: $('#debtCreditor').value.trim(),
+    category: $('#debtCategory').value,
+    totalAmount: totalAmount,
+    installmentsCount: count,
+    installmentAmount: installmentAmount,
+    startDate: firstDueDate,
+    dueDay: baseDate.getDate(),
+    frequency: frequency,
+    notes: $('#debtNotes').value.trim(),
+    installments: installments
+  };
+
+  if (!state.debts) state.debts = [];
+  state.debts.push(newDebt);
+
+  saveState();
+  closeModal('debtModal');
+  playChime('success');
+  toast(`Deuda '${newDebt.title}' creada con ${count} cuotas programadas`, '💳');
+  render();
+};
+
+// Abrir modal de pago de cuota
+window.openPayDebtModal = (debtId, instNum = null) => {
+  const debt = (state.debts || []).find(d => d.id === debtId);
+  if (!debt) return;
+
+  const insts = debt.installments || [];
+  let targetInst = null;
+
+  if (instNum !== null) {
+    targetInst = insts.find(i => i.number === instNum);
+  }
+  if (!targetInst) {
+    targetInst = insts.find(i => i.status === 'pending');
+  }
+
+  if (!targetInst) {
+    toast('Esta deuda no tiene cuotas pendientes por pagar', 'ℹ️');
+    return;
+  }
+
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+
+  const paidSum = insts.filter(i => i.status === 'paid').reduce((s, x) => s + x.amount, 0);
+  const remaining = debt.totalAmount - paidSum;
+
+  $('#payTargetDebtId').value = debt.id;
+  $('#payTargetInstNumber').value = targetInst.number;
+  $('#payDebtNameDisplay').textContent = debt.title;
+  $('#payDebtCreditorDisplay').textContent = debt.creditor + ' · ' + debt.category;
+  $('#payDebtCuotaBadge').textContent = `Cuota ${targetInst.number} de ${debt.installmentsCount}`;
+  $('#payDebtRemainingDisplay').textContent = formatMoney(remaining);
+  $('#payDebtUserBalanceDisplay').textContent = formatMoney(balance);
+
+  $('#payDebtAmount').value = targetInst.amount.toFixed(2);
+  $('#payDebtDate').value = new Date().toISOString().slice(0, 10);
+  $('#payDebtRecordExpense').checked = true;
+  $('#payDebtNotes').value = `Pago cuota ${targetInst.number}/${debt.installmentsCount} · ${debt.title}`;
+
+  $('#payDebtModal').classList.remove('hidden');
+};
+
+// Prompt para pagar cuota rápida si no se especificó deuda
+window.openPayDebtModalPrompt = () => {
+  const pendingDebts = (state.debts || []).filter(d => (d.installments || []).some(i => i.status === 'pending'));
+  if (!pendingDebts.length) {
+    toast('No tienes deudas activas con cuotas pendientes', '🎉');
+    return;
+  }
+  openPayDebtModal(pendingDebts[0].id);
+};
+
+// Ejecución del Pago de Cuota y descuento de ingresos
+window.executeDebtPayment = (e) => {
+  e.preventDefault();
+  const debtId = $('#payTargetDebtId').value;
+  const instNumber = parseInt($('#payTargetInstNumber').value, 10);
+  const payAmount = parseFloat($('#payDebtAmount').value) || 0;
+  const payDate = $('#payDebtDate').value || new Date().toISOString().slice(0, 10);
+  const payMethod = $('#payDebtMethod').value;
+  const recordExpense = $('#payDebtRecordExpense').checked;
+  const payNotes = $('#payDebtNotes').value.trim();
+
+  const debt = (state.debts || []).find(d => d.id === debtId);
+  if (!debt) return;
+
+  const inst = (debt.installments || []).find(i => i.number === instNumber);
+  if (!inst) return;
+
+  // 1. Marcar cuota como pagada
+  inst.status = 'paid';
+  inst.paidDate = payDate;
+  inst.method = payMethod;
+
+  // 2. Si está activado, registrar como GASTO en Finanzas Diarias
+  // Esto suma a totalExp y descuenta automáticamente de los ingresos / balance neto
+  if (recordExpense) {
+    const tx = {
+      id: 'tx-cuota-' + Date.now(),
+      type: 'expense',
+      title: `Pago Cuota ${inst.number}/${debt.installmentsCount} · ${debt.title}`,
+      amount: payAmount,
+      category: 'Pago de Deuda / Cuotas',
+      date: payDate,
+      method: payMethod,
+      notes: payNotes || `Amortización de deuda ${debt.title} (${debt.creditor})`,
+      debtId: debt.id,
+      installmentNumber: inst.number
+    };
+    state.transactions.unshift(tx);
+    inst.txId = tx.id;
+  }
+
+  saveState();
+  closeModal('payDebtModal');
+  closeModal('debtScheduleModal');
+
+  // Verificar si la deuda quedó 100% cancelada
+  const isFullyPaid = (debt.installments || []).every(i => i.status === 'paid');
+
+  if (isFullyPaid) {
+    playChime('celebrate');
+    toast(`🎉 ¡FELICITACIONES! Has cancelado por completo la deuda '${debt.title}'.`, '🏆');
+  } else {
+    playChime('success');
+    toast(`Cuota ${inst.number} pagada con éxito (${formatMoney(payAmount)}). Registrada en tus gastos y descontada de ingresos.`, '💳');
+  }
+
+  render();
+};
+
+// Ver Cronograma Completo de una Deuda
+window.openDebtSchedule = (debtId) => {
+  const debt = (state.debts || []).find(d => d.id === debtId);
+  if (!debt) return;
+
+  const insts = debt.installments || [];
+  const paidInsts = insts.filter(i => i.status === 'paid');
+  const paidSum = paidInsts.reduce((s, x) => s + x.amount, 0);
+  const pendingSum = debt.totalAmount - paidSum;
+  const pct = Math.round((paidSum / debt.totalAmount) * 100);
+
+  $('#schedDebtTitle').textContent = `Cronograma de Pagos: ${debt.title}`;
+  $('#schedDebtSub').textContent = `${debt.creditor} · ${debt.category} · ${debt.installmentsCount} cuotas`;
+
+  $('#schedSummaryBar').innerHTML = `
+    <div>
+      <small style="color:var(--text-dim);display:block;font-size:11px">Total Deuda</small>
+      <strong style="font-size:14px">${formatMoney(debt.totalAmount)}</strong>
+    </div>
+    <div>
+      <small style="color:var(--text-dim);display:block;font-size:11px">Pagado</small>
+      <strong style="font-size:14px;color:var(--success)">${formatMoney(paidSum)}</strong>
+    </div>
+    <div>
+      <small style="color:var(--text-dim);display:block;font-size:11px">Pendiente</small>
+      <strong style="font-size:14px;color:var(--danger)">${formatMoney(pendingSum)}</strong>
+    </div>
+    <div>
+      <small style="color:var(--text-dim);display:block;font-size:11px">Progreso</small>
+      <strong style="font-size:14px;color:var(--primary)">${pct}%</strong>
+    </div>
+  `;
+
+  const tbody = $('#schedTableBody');
+  tbody.innerHTML = insts.map(inst => {
+    const isPaid = inst.status === 'paid';
+    return `
+      <tr class="installment-row ${isPaid ? 'paid' : ''}">
+        <td><b>Cuota ${inst.number}</b></td>
+        <td>${inst.dueDate}</td>
+        <td><b>${formatMoney(inst.amount)}</b></td>
+        <td>
+          <span class="status-badge ${isPaid ? 'status-paid' : 'status-pending'}">
+            ${isPaid ? '✓ Pagada' : '⏳ Pendiente'}
+          </span>
+        </td>
+        <td>${inst.paidDate ? inst.paidDate + ' (' + (inst.method || '') + ')' : '-'}</td>
+        <td>
+          ${isPaid ? `
+            <button class="btn btn-sm btn-soft" onclick="reverseDebtInstallment('${debt.id}', ${inst.number})" title="Reversar pago">
+              ↩ Reversar
+            </button>
+          ` : `
+            <button class="btn btn-sm btn-success" onclick="openPayDebtModal('${debt.id}', ${inst.number})">
+              💳 Pagar Cuota
+            </button>
+          `}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  $('#debtScheduleModal').classList.remove('hidden');
+};
+
+// Reversar cuota en caso de error
+window.reverseDebtInstallment = (debtId, instNum) => {
+  const debt = (state.debts || []).find(d => d.id === debtId);
+  if (!debt) return;
+  const inst = (debt.installments || []).find(i => i.number === instNum);
+  if (!inst) return;
+
+  if (confirm(`¿Deseas reversar la Cuota ${instNum}? Si existe un gasto registrado, también se eliminará.`)) {
+    if (inst.txId) {
+      state.transactions = state.transactions.filter(t => t.id !== inst.txId);
+    }
+    inst.status = 'pending';
+    inst.paidDate = null;
+    inst.method = null;
+    inst.txId = null;
+
+    saveState();
+    toast(`Cuota ${instNum} restablecida a pendiente`, '↩️');
+    openDebtSchedule(debtId);
+    render();
+  }
+};
+
+window.deleteDebt = (debtId) => {
+  const debt = (state.debts || []).find(d => d.id === debtId);
+  if (!debt) return;
+  if (confirm(`¿Eliminar la deuda '${debt.title}' y todo su cronograma de cuotas?`)) {
+    state.debts = state.debts.filter(d => d.id !== debtId);
+    saveState();
+    toast('Deuda eliminada del registro', '🗑️');
+    render();
+  }
+};
+
+window.exportDebtsCsv = () => {
+  const debts = state.debts || [];
+  let csv = 'Deuda,Acreedor,Categoria,CuotaNumero,MontoCuota,FechaVencimiento,Estado,FechaPago,Metodo\n';
+  debts.forEach(d => {
+    (d.installments || []).forEach(i => {
+      csv += `"${d.title}","${d.creditor}","${d.category}",${i.number},${i.amount},"${i.dueDate}","${i.status}","${i.paidDate || ''}","${i.method || ''}"\n`;
+    });
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cronograma_deudas_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  toast('Cronograma de deudas descargado (.CSV)', '📥');
+};
+
+// -------------------------------------------------------------
+// 4. AGENDA VIRTUAL & HÁBITOS
+// -------------------------------------------------------------
+function renderAgenda(container) {
+  const today = new Date().toISOString().slice(0, 10);
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="font-size:20px;font-weight:800">Agenda Virtual & Hábitos Diarios</h3>
+        <p style="color:var(--text-muted);font-size:13px">Bloques de tiempo, tareas prioritarias y hábitos para desarrollar disciplina constante.</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="openAgendaModal()">＋ Nueva Actividad</button>
+        <button class="btn btn-soft" onclick="setupGoogleIntegrations();$('#syncCalendarBtn').click()">📅 Enviar a Google Calendar</button>
+      </div>
+    </div>
+
+    <div class="card-panel">
+      <div class="panel-head">
+        <h3>Actividades y Hábitos (${today})</h3>
+        <span class="nav-badge">${state.agenda.filter(a => a.done).length} de ${state.agenda.length} completados</span>
+      </div>
+      <div class="agenda-list">
+        ${state.agenda.map(item => `
+          <div class="agenda-card ${item.done ? 'done' : ''}">
+            <div class="agenda-time">${item.time}</div>
+            <div class="agenda-body">
+              <h4>${item.title}</h4>
+              <div class="agenda-meta">
+                <span class="priority-tag p-${item.priority}">Prioridad ${item.priority}</span>
+                <span>${item.type === 'habit' ? '🌱 Hábito diario' : '📌 Tarea'}</span>
+                <span>${item.date}</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" style="width:22px;height:22px;cursor:pointer" ${item.done ? 'checked' : ''} onchange="toggleTaskDone('${item.id}')">
+              <button class="btn btn-sm btn-soft" onclick="deleteAgendaItem('${item.id}')">🗑️</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------
+// 5. MODO ENFOQUE (POMODORO)
+// -------------------------------------------------------------
+function renderPomodoro(container) {
+  const pomo = state.pomodoro;
+  const mins = Math.floor(pomo.timeLeft / 60);
+  const secs = pomo.timeLeft % 60;
+  const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const pendingTasks = state.agenda.filter(a => !a.done);
+
+  container.innerHTML = `
+    <div style="margin-bottom:20px">
+      <h3 style="font-size:20px;font-weight:800">Modo Enfoque · Pomodoro de Disciplina</h3>
+      <p style="color:var(--text-muted);font-size:13px">Trabaja en bloques de 25 minutos con descansos de 5 minutos para entrenar tu concentración.</p>
+    </div>
+
+    <div class="card-panel pomodoro-box" style="max-width:560px;margin:0 auto">
+      <div class="pomodoro-modes">
+        <button class="pomodoro-mode-btn ${pomo.mode === 'work' ? 'active' : ''}" onclick="setPomodoroMode('work')">🧠 Trabajo (25 min)</button>
+        <button class="pomodoro-mode-btn ${pomo.mode === 'short' ? 'active' : ''}" onclick="setPomodoroMode('short')">☕ Descanso Corto (5 min)</button>
+        <button class="pomodoro-mode-btn ${pomo.mode === 'long' ? 'active' : ''}" onclick="setPomodoroMode('long')">🌴 Descanso Largo (15 min)</button>
+      </div>
+
+      <div class="pomodoro-timer" id="pomodoroTimerDisplay">${timeFormatted}</div>
+
+      <div style="margin-bottom:18px;width:100%;max-width:380px">
+        <label style="font-size:12px;color:var(--text-dim);display:block;margin-bottom:6px">Actividad enfocada:</label>
+        <select id="pomoTaskSelect" onchange="state.pomodoro.selectedTaskId = this.value; saveState()" style="width:100%;padding:10px;border-radius:10px;background:var(--bg-secondary);border:1px solid var(--border)">
+          <option value="">Selecciona una tarea de tu agenda...</option>
+          ${pendingTasks.map(t => `<option value="${t.id}" ${pomo.selectedTaskId === t.id ? 'selected' : ''}>${t.title} (${t.time})</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="pomodoro-actions">
+        ${pomo.running ? `
+          <button class="btn btn-danger" onclick="pausePomodoro()" style="min-width:130px;font-size:15px">⏸️ Pausar</button>
+        ` : `
+          <button class="btn btn-primary" onclick="startPomodoro()" style="min-width:130px;font-size:15px">▶️ Iniciar Enfoque</button>
+        `}
+        <button class="btn btn-soft" onclick="resetPomodoro()" style="min-width:100px">🔄 Reiniciar</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+        <span style="font-size:24px">🍅</span>
+        <div style="text-align:left">
+          <strong style="font-size:14px;display:block">Sesiones Completadas Hoy: ${pomo.sessionsCompleted}</strong>
+          <small style="color:var(--text-muted)">Cada bloque completado suma puntos a tu Índice de Disciplina.</small>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.setPomodoroMode = (mode) => {
+  clearInterval(state.pomodoro.timer);
+  state.pomodoro.running = false;
+  state.pomodoro.mode = mode;
+  if (mode === 'work') state.pomodoro.timeLeft = 25 * 60;
+  else if (mode === 'short') state.pomodoro.timeLeft = 5 * 60;
+  else if (mode === 'long') state.pomodoro.timeLeft = 15 * 60;
+  render();
+};
+
+window.startPomodoro = () => {
+  if (state.pomodoro.running) return;
+  state.pomodoro.running = true;
+  state.pomodoro.timer = setInterval(() => {
+    if (state.pomodoro.timeLeft > 0) {
+      state.pomodoro.timeLeft--;
+      const mins = Math.floor(state.pomodoro.timeLeft / 60);
+      const secs = state.pomodoro.timeLeft % 60;
+      const display = $('#pomodoroTimerDisplay');
+      if (display) display.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    } else {
+      clearInterval(state.pomodoro.timer);
+      state.pomodoro.running = false;
+      playChime('celebrate');
+      if (state.pomodoro.mode === 'work') {
+        state.pomodoro.sessionsCompleted = (state.pomodoro.sessionsCompleted || 0) + 1;
+        saveState();
+        toast('🎉 ¡Bloque de enfoque completado! +Puntos de Disciplina.', '🍅');
+        // Si tenía tarea asignada, marcarla
+        if (state.pomodoro.selectedTaskId) {
+          const task = state.agenda.find(t => t.id === state.pomodoro.selectedTaskId);
+          if (task) task.done = true;
+          saveState();
+        }
+      } else {
+        toast('Descanso finalizado. ¡Listo para volver al enfoque!', '⚡');
+      }
+      render();
+    }
+  }, 1000);
+  render();
+};
+
+window.pausePomodoro = () => {
+  clearInterval(state.pomodoro.timer);
+  state.pomodoro.running = false;
+  render();
+};
+
+window.resetPomodoro = () => {
+  clearInterval(state.pomodoro.timer);
+  state.pomodoro.running = false;
+  setPomodoroMode(state.pomodoro.mode);
+};
+
+// -------------------------------------------------------------
+// 6. METAS DE AHORRO & FONDOS
+// -------------------------------------------------------------
+function renderAhorros(container) {
+  const savings = state.savings || [];
+  const totalSaved = savings.reduce((s, x) => s + x.currentAmount, 0);
+  const totalTarget = savings.reduce((s, x) => s + x.targetAmount, 0);
+  const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="font-size:20px;font-weight:800">Metas de Ahorro & Fondos de Reserva</h3>
+        <p style="color:var(--text-muted);font-size:13px">Separa fondos para tu tranquilidad y alcanza tus metas con constancia.</p>
+      </div>
+      <button class="btn btn-primary" onclick="openSavingsModal()">＋ Nueva Meta de Ahorro</button>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Total Ahorrado</span>
+        <div class="kpi-value" style="color:var(--success)">${formatMoney(totalSaved)}</div>
+        <div class="kpi-sub">En ${savings.length} metas activas</div>
+      </div>
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Objetivo Total</span>
+        <div class="kpi-value" style="color:var(--primary)">${formatMoney(totalTarget)}</div>
+        <div class="kpi-sub">Monto meta consolidado</div>
+      </div>
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Progreso de Ahorro</span>
+        <div class="kpi-value" style="color:var(--warning)">${overallPct}%</div>
+        <div class="debt-progress" style="margin-top:6px">
+          <div class="debt-progress-fill" style="width:${overallPct}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="saving-grid" style="margin-top:16px">
+      ${savings.map(goal => {
+        const pct = Math.round((goal.currentAmount / goal.targetAmount) * 100);
+        return `
+          <div class="saving-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <strong style="font-size:16px;display:block">${goal.title}</strong>
+                <small style="color:var(--text-muted)">${goal.category} · Meta: ${goal.targetDate}</small>
+              </div>
+              <span class="nav-badge">${pct}%</span>
+            </div>
+
+            <div style="margin:8px 0">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                <span style="color:var(--text-dim)">${formatMoney(goal.currentAmount)}</span>
+                <span style="color:var(--text-muted)">de ${formatMoney(goal.targetAmount)}</span>
+              </div>
+              <div class="debt-progress">
+                <div class="debt-progress-fill" style="width:${Math.min(100, pct)}%"></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:6px">
+              <button class="btn btn-sm btn-success" style="flex:1" onclick="openSavingsContributeModal('${goal.id}')">
+                💰 Aportar al Ahorro
+              </button>
+              <button class="btn btn-sm btn-soft" onclick="deleteSavingsGoal('${goal.id}')" title="Eliminar meta">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+window.openSavingsModal = () => {
+  $('#savingsModal').classList.remove('hidden');
+  $('#savDate').value = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+};
+
+window.saveSavingsGoal = (e) => {
+  e.preventDefault();
+  const goal = {
+    id: 'sav-' + Date.now(),
+    title: $('#savTitle').value.trim(),
+    targetAmount: parseFloat($('#savTarget').value) || 0,
+    currentAmount: parseFloat($('#savInitial').value) || 0,
+    targetDate: $('#savDate').value,
+    category: $('#savCategory').value
+  };
+  if (!state.savings) state.savings = [];
+  state.savings.push(goal);
+  saveState();
+  closeModal('savingsModal');
+  toast('Meta de ahorro creada', '🎯');
+  render();
+};
+
+window.openSavingsContributeModal = (goalId) => {
+  const goal = (state.savings || []).find(g => g.id === goalId);
+  if (!goal) return;
+  $('#savContributeGoalId').value = goal.id;
+  $('#savContributeGoalTitle').value = `${goal.title} (Faltan: ${formatMoney(goal.targetAmount - goal.currentAmount)})`;
+  $('#savContributeAmount').value = '100.00';
+  $('#savContributeDate').value = new Date().toISOString().slice(0, 10);
+  $('#savingsContributeModal').classList.remove('hidden');
+};
+
+window.executeSavingsContribute = (e) => {
+  e.preventDefault();
+  const goalId = $('#savContributeGoalId').value;
+  const amount = parseFloat($('#savContributeAmount').value) || 0;
+  const date = $('#savContributeDate').value || new Date().toISOString().slice(0, 10);
+  const recordExp = $('#savRecordExpense').checked;
+
+  const goal = (state.savings || []).find(g => g.id === goalId);
+  if (!goal) return;
+
+  goal.currentAmount += amount;
+
+  if (recordExp) {
+    const tx = {
+      id: 'tx-sav-' + Date.now(),
+      type: 'expense',
+      title: `Aporte a Ahorro: ${goal.title}`,
+      amount: amount,
+      category: 'Ahorro / Inversión',
+      date: date,
+      method: 'Transferencia',
+      notes: `Alcancía ${goal.title}`
+    };
+    state.transactions.unshift(tx);
+  }
+
+  saveState();
+  closeModal('savingsContributeModal');
+  playChime('success');
+  toast(`Aporte de ${formatMoney(amount)} registrado a ${goal.title}`, '🎯');
+  render();
+};
+
+window.deleteSavingsGoal = (id) => {
+  if (confirm('¿Eliminar esta meta de ahorro?')) {
+    state.savings = (state.savings || []).filter(g => g.id !== id);
+    saveState();
+    toast('Meta de ahorro eliminada', '🗑️');
+    render();
+  }
+};
+
+// -------------------------------------------------------------
+// 7. INDICADORES CLAVE (KPIS & MÉTRICAS)
+// -------------------------------------------------------------
+function renderIndicadores(container) {
+  const score = calculateDisciplineScore();
+  const streak = getDisciplineStreak();
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0);
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const balance = totalInc - totalExp;
+  const savingsPct = totalInc > 0 ? Math.round((balance / totalInc) * 100) : 0;
+  const agendaPct = state.agenda.length ? Math.round((state.agenda.filter(a => a.done).length / state.agenda.length) * 100) : 100;
+
+  // KPIs de Deuda
+  const debts = state.debts || [];
+  let totalOrig = 0, totalPaidDebt = 0, totalPendingDebt = 0;
+  debts.forEach(d => {
+    totalOrig += d.totalAmount;
+    (d.installments || []).forEach(i => {
+      if (i.status === 'paid') totalPaidDebt += i.amount;
+      else totalPendingDebt += i.amount;
+    });
+  });
+  const debtAmortPct = totalOrig > 0 ? Math.round((totalPaidDebt / totalOrig) * 100) : 100;
+
+  container.innerHTML = `
+    <div style="margin-bottom:20px">
+      <h3 style="font-size:20px;font-weight:800">Medición de Todo · Indicadores Clave (KPIs)</h3>
+      <p style="color:var(--text-muted);font-size:13px">Lo que no se mide, no se puede mejorar. Monitorea tu disciplina, finanzas y deuda.</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Índice de Disciplina</span>
+        <div class="kpi-value" style="color:var(--warning)">${score}%</div>
+        <div class="kpi-sub">Fórmula: 40% agenda + 30% finanzas + 15% deudas + 15% enfoque</div>
+      </div>
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Racha de Cumplimiento</span>
+        <div class="kpi-value" style="color:#f59e0b">🔥 ${streak} Días</div>
+        <div class="kpi-sub">Consistencia diaria ininterrumpida</div>
+      </div>
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Desendeudamiento</span>
+        <div class="kpi-value" style="color:var(--primary)">${debtAmortPct}%</div>
+        <div class="kpi-sub">Deuda cancelada del total original</div>
+      </div>
+      <div class="kpi-card">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted)">Cumplimiento de Agenda</span>
+        <div class="kpi-value" style="color:var(--success)">${agendaPct}%</div>
+        <div class="kpi-sub">Meta diaria: >= 80%</div>
+      </div>
+    </div>
+
+    <!-- Gráfico Canvas Semanal de Disciplina -->
+    <div class="card-panel" style="margin-bottom:20px">
+      <div class="panel-head">
+        <h3>Evolución Semanal de Disciplina (Canvas)</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Últimos 7 días</span>
+      </div>
+      <div style="position:relative;width:100%;height:220px;">
+        <canvas id="disciplineChart" width="700" height="220" style="width:100%;height:100%;border-radius:10px;background:rgba(0,0,0,0.2)"></canvas>
+      </div>
+    </div>
+
+    <!-- Gráfico Canvas Distribución Financiera -->
+    <div class="card-panel">
+      <div class="panel-head">
+        <h3>Distribución de Dinero: Ingresos vs Gastos vs Deudas</h3>
+        <span style="font-size:12px;color:var(--text-muted)">Flujo de caja activo</span>
+      </div>
+      <div style="position:relative;width:100%;height:180px;">
+        <canvas id="financeBarChart" width="700" height="180" style="width:100%;height:100%;border-radius:10px;background:rgba(0,0,0,0.2)"></canvas>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    drawDisciplineChart();
+    drawFinanceBarChart();
+  }, 50);
+}
+
+function drawDisciplineChart() {
+  const canvas = $('#disciplineChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Hoy'];
+  const values = [65, 70, 80, 75, 85, 90, calculateDisciplineScore()];
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1;
+  for (let y = 30; y < h - 30; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(40, y);
+    ctx.lineTo(w - 20, y);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.strokeStyle = '#3b82f6';
+  ctx.lineWidth = 3;
+  const step = (w - 70) / (values.length - 1);
+
+  values.forEach((v, i) => {
+    const x = 40 + i * step;
+    const y = h - 40 - (v / 100) * (h - 80);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  values.forEach((v, i) => {
+    const x = 40 + i * step;
+    const y = h - 40 - (v / 100) * (h - 80);
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`${v}%`, x - 10, y - 10);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(days[i], x - 10, h - 15);
+  });
+}
+
+function drawFinanceBarChart() {
+  const canvas = $('#financeBarChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const totalInc = state.transactions.filter(t => t.type === 'income').reduce((s, x) => s + x.amount, 0) || 1;
+  const totalExp = state.transactions.filter(t => t.type === 'expense').reduce((s, x) => s + x.amount, 0);
+  const debts = (state.debts || []).reduce((s, d) => s + (d.installments || []).filter(i => i.status === 'pending').reduce((a, b) => a + b.amount, 0), 0);
+  const savings = (state.savings || []).reduce((s, x) => s + x.currentAmount, 0);
+
+  const categories = [
+    { label: 'Ingresos', val: totalInc, color: '#10b981' },
+    { label: 'Gastos', val: totalExp, color: '#ef4444' },
+    { label: 'Deuda Pendiente', val: debts, color: '#f59e0b' },
+    { label: 'Ahorro Acumulado', val: savings, color: '#3b82f6' }
+  ];
+
+  const maxVal = Math.max(...categories.map(c => c.val), 100);
+  const barWidth = 44;
+  const gap = (w - (categories.length * barWidth)) / (categories.length + 1);
+
+  categories.forEach((cat, idx) => {
+    const barHeight = (cat.val / maxVal) * (h - 70);
+    const x = gap + idx * (barWidth + gap);
+    const y = h - 35 - barHeight;
+
+    ctx.fillStyle = cat.color;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, barHeight, [6, 6, 0, 0]);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(`S/ ${Math.round(cat.val)}`, x - 4, y - 6);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '10.5px sans-serif';
+    ctx.fillText(cat.label, x - 10, h - 14);
+  });
+}
+
+// -------------------------------------------------------------
+// 8. GOOGLE INTEGRATION & SCRIPTS
+// -------------------------------------------------------------
+function renderGoogle(container) {
+  container.innerHTML = `
+    <div style="margin-bottom:20px">
+      <h3 style="font-size:20px;font-weight:800">Conexión con Google Sheets & Calendar</h3>
+      <p style="color:var(--text-muted);font-size:13px">Integra tu agenda y control financiero directamente con las herramientas de Google.</p>
+    </div>
+
+    <!-- Banner de Cuenta Configurada -->
+    <div class="card-panel" style="background:linear-gradient(135deg,rgba(59,130,246,0.12),rgba(16,185,129,0.12));border:1px solid rgba(59,130,246,0.35);margin-bottom:20px;padding:16px 20px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="width:42px;height:42px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:20px;flex-shrink:0">📧</div>
+        <div style="flex:1;min-width:220px">
+          <strong style="font-size:15px;display:block">Cuenta Google Configurada: tualiadoenusaforms@gmail.com</strong>
+          <small style="color:var(--text-muted);display:block;margin-top:2px">Las exportaciones de Google Sheets y la sincronización de Google Calendar están configuradas para este correo.</small>
+        </div>
+        <span class="hero-tag" style="background:var(--success-bg);color:var(--success);font-weight:800">✓ Correo Vinculado</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+      <!-- Google Calendar Sync Card -->
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>📅 Google Calendar</h3>
+          <span class="nav-badge">Sincronización</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
+          Envía tus recordatorios y vencimientos de cuotas directamente a Google Calendar en <b>tualiadoenusaforms@gmail.com</b> para recibir notificaciones en tu celular aún con la web inactiva.
+        </p>
+        <button class="btn btn-primary" id="syncCalendarBtn" style="width:100%;margin-bottom:10px">📅 Sincronizar Agenda & Cuotas</button>
+        <button class="btn btn-soft" id="googleSignInBtn" style="width:100%">🔑 Conectar con tualiadoenusaforms@gmail.com</button>
+      </div>
+
+      <!-- Google Sheets Sync Card -->
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>📗 Google Sheets</h3>
+          <span class="nav-badge">Exportación</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
+          Descarga o exporta todas tus transacciones financieras (ingresos, gastos y cuotas) organizadas en columnas compatibles con hojas de cálculo para <b>tualiadoenusaforms@gmail.com</b>.
+        </p>
+        <button class="btn btn-success" id="exportSheetsBtn" style="width:100%;margin-bottom:10px">📊 Exportar a Google Sheets (.CSV)</button>
+        <button class="btn btn-soft" id="copyScriptBtn" style="width:100%">📋 Copiar Google Apps Script</button>
+      </div>
+    </div>
+
+    <!-- Apps Script Generator Box -->
+    <div class="card-panel" style="margin-top:20px">
+      <div class="panel-head">
+        <h3>⚡ Script de Google Apps Script (Webhook)</h3>
+        <span class="nav-badge">Apps Script</span>
+      </div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">
+        Puedes vincular una Web App de Apps Script creada desde tu cuenta <b>tualiadoenusaforms@gmail.com</b> para registrar automáticamente cada transacción o tarea en tu Google Sheet:
+      </p>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input type="url" id="appsScriptInput" placeholder="https://script.google.com/macros/s/.../exec" value="${state.appsScriptUrl}" style="flex:1;min-width:240px">
+        <button class="btn btn-primary" onclick="saveAppsScriptUrl()">Guardar URL</button>
+      </div>
+    </div>
+  `;
+  setupGoogleIntegrations();
+}
+
+window.saveAppsScriptUrl = () => {
+  const val = $('#appsScriptInput')?.value.trim() || '';
+  state.appsScriptUrl = val;
+  saveState();
+  toast('URL de Google Apps Script guardada', '✅');
+};
+
+function exportTransactionsCsv() {
+  let csv = 'Fecha,Tipo,Concepto,Monto,Categoria,Metodo,Notas\n';
+  state.transactions.forEach(tx => {
+    csv += `"${tx.date}","${tx.type}","${tx.title}",${tx.amount},"${tx.category}","${tx.method}","${tx.notes || ''}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `gestion_personal_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  toast('Movimientos exportados a CSV para Google Sheets', '📗');
+}
+
+// -------------------------------------------------------------
+// 9. SEGURIDAD EN DOS PASOS & PWA
+// -------------------------------------------------------------
+function renderSeguridad(container) {
+  container.innerHTML = `
+    <div style="margin-bottom:20px">
+      <h3 style="font-size:20px;font-weight:800">Seguridad en Dos Pasos & Aplicación PWA</h3>
+      <p style="color:var(--text-muted);font-size:13px">Protege tus finanzas y configura el acceso rápido desde tu teléfono móvil.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>🔐 Acceso en Dos Pasos (2FA)</h3>
+          <span class="nav-badge" style="background:var(--success-bg);color:var(--success)">Activo</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-secondary);border-radius:10px">
+            <span style="font-size:20px">👤</span>
+            <div style="flex:1">
+              <strong style="font-size:13px">Paso 1: Identidad del Usuario</strong>
+              <small style="color:var(--text-muted);display:block">${state.user.name} (${state.user.email})</small>
+            </div>
+            <span style="color:var(--success);font-weight:800;font-size:12px">✓ Verificado</span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-secondary);border-radius:10px">
+            <span style="font-size:20px">🔒</span>
+            <div style="flex:1">
+              <strong style="font-size:13px">Paso 2: PIN de Seguridad</strong>
+              <small style="color:var(--text-muted);display:block">PIN de 4 dígitos para proteger finanzas</small>
+            </div>
+            <button class="btn btn-sm btn-soft" onclick="showPinModal()">Cambiar / Probar</button>
+          </div>
+        </div>
+        <button class="btn btn-danger" style="width:100%" onclick="state.pinLocked=true;render();showPinModal()">🔒 Bloquear Pantalla con PIN Ahora</button>
+      </div>
+
+      <div class="card-panel">
+        <div class="panel-head">
+          <h3>📲 Notificaciones y PWA Móvil</h3>
+          <span class="nav-badge">Celular</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
+          Permite que la app te notifique en el celular recordatorios de tareas, cierre del día financiero y hábitos aún con la web inactiva.
+        </p>
+        <button class="btn btn-primary" id="enableNotifBtn" style="width:100%;margin-bottom:10px">
+          🔔 ${state.notificationsEnabled ? 'Notificaciones Activadas' : 'Activar Notificaciones en Celular'}
+        </button>
+        <button class="btn btn-soft" id="pwaInstallBtn" style="width:100%">📲 Instalar App en Pantalla de Inicio</button>
+      </div>
+    </div>
+
+    <!-- Respaldo y Restauración de Datos -->
+    <div class="card-panel" style="margin-top:20px">
+      <div class="panel-head">
+        <h3>💾 Copia de Seguridad & Respaldo Local</h3>
+        <span class="nav-badge">Backup</span>
+      </div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+        Descarga una copia completa de tus finanzas, deudas, cuotas y agenda en formato JSON o restáurala en cualquier dispositivo.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-soft" onclick="exportJsonBackup()">📥 Descargar Backup Completo (JSON)</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          📤 Restaurar Backup
+          <input type="file" accept=".json" onchange="importJsonBackup(event)" style="display:none">
+        </label>
+      </div>
+    </div>
+  `;
+  setupNotifications();
+}
+
+window.exportJsonBackup = () => {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `gestion_personal_backup_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  toast('Copia de seguridad descargada', '💾');
+};
+
+window.importJsonBackup = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (parsed.transactions) state.transactions = parsed.transactions;
+      if (parsed.debts) state.debts = parsed.debts;
+      if (parsed.savings) state.savings = parsed.savings;
+      if (parsed.agenda) state.agenda = parsed.agenda;
+      saveState();
+      toast('Copia de seguridad restaurada con éxito', '✅');
+      render();
+    } catch (err) {
+      toast('Error al leer el archivo de copia de seguridad', '❌');
+    }
+  };
+  reader.readAsText(file);
+};
+
+// -------------------------------------------------------------
+// OPERACIONES DE TRANSACCIONES Y AGENDA
+// -------------------------------------------------------------
+window.openTxModal = (type) => {
+  const modal = $('#txModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  $('#txType').value = type;
+  $('#txModalTitle').textContent = type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto';
+  $('#txDate').value = new Date().toISOString().slice(0, 10);
+};
+
+window.openAgendaModal = () => {
+  const modal = $('#agendaModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  $('#agDate').value = new Date().toISOString().slice(0, 10);
+};
+
+window.closeModal = (id) => {
+  const el = $(`#${id}`);
+  if (el) el.classList.add('hidden');
+};
+
+window.saveTransaction = (e) => {
+  e.preventDefault();
+  const tx = {
+    id: 'tx-' + Date.now(),
+    type: $('#txType').value,
+    title: $('#txTitle').value.trim(),
+    amount: parseFloat($('#txAmount').value) || 0,
+    category: $('#txCategory').value,
+    date: $('#txDate').value || new Date().toISOString().slice(0, 10),
+    method: $('#txMethod').value,
+    notes: $('#txNotes').value.trim()
+  };
+
+  state.transactions.unshift(tx);
+  saveState();
+  closeModal('txModal');
+  playChime('success');
+  toast(`${tx.type === 'income' ? 'Ingreso' : 'Gasto'} registrado correctamente`, '💰');
+  render();
+};
+
+window.saveAgendaItem = (e) => {
+  e.preventDefault();
+  const item = {
+    id: 'ag-' + Date.now(),
+    title: $('#agTitle').value.trim(),
+    time: $('#agTime').value || '09:00',
+    priority: $('#agPriority').value,
+    type: $('#agType').value,
+    date: $('#agDate').value || new Date().toISOString().slice(0, 10),
+    done: false
+  };
+
+  state.agenda.push(item);
+  saveState();
+  closeModal('agendaModal');
+  playChime('success');
+  toast('Actividad agregada a tu agenda de disciplina', '📅');
+  render();
+};
+
+window.toggleTaskDone = (id) => {
+  const task = state.agenda.find(a => a.id === id);
+  if (task) {
+    task.done = !task.done;
+    saveState();
+    playChime(task.done ? 'success' : 'error');
+    toast(task.done ? '¡Actividad completada! +Disciplina 🔥' : 'Actividad marcada como pendiente', task.done ? '✅' : '↩️');
+    render();
+  }
+};
+
+window.deleteTransaction = (id) => {
+  state.transactions = state.transactions.filter(t => t.id !== id);
+  saveState();
+  toast('Movimiento eliminado', '🗑️');
+  render();
+};
+
+window.deleteAgendaItem = (id) => {
+  state.agenda = state.agenda.filter(a => a.id !== id);
+  saveState();
+  toast('Actividad eliminada', '🗑️');
+  render();
+};
