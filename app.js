@@ -714,28 +714,15 @@ function setupGoogleIntegrations() {
 
   if (copyScriptBtn) {
     copyScriptBtn.onclick = () => {
-      const scriptCode = `// Google Apps Script para Gestión Personal
-// Vinculado a: tualiadoenusaforms@gmail.com
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetFinanzas = ss.getSheetByName("Finanzas") || ss.insertSheet("Finanzas");
-    var sheetDeudas = ss.getSheetByName("Deudas") || ss.insertSheet("Deudas");
-    
-    if (sheetFinanzas.getLastRow() === 0) {
-      sheetFinanzas.appendRow(["Registro", "Fecha", "Tipo", "Concepto", "Monto", "Categoría", "Método", "Usuario"]);
-    }
-    if (data.type === 'transaction') {
-      sheetFinanzas.appendRow([new Date(), data.date, data.kind, data.title, data.amount, data.category, data.method, "tualiadoenusaforms@gmail.com"]);
-    }
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.message })).setMimeType(ContentService.MimeType.JSON);
-  }
-}`;
-      navigator.clipboard.writeText(scriptCode);
-      toast('Código Apps Script copiado al portapapeles', '📋');
+      if (typeof APPS_SCRIPT_CODE !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(() => {
+          toast('Código Apps Script copiado al portapapeles', '📋');
+        }).catch(() => {
+          toast('Copia el código directamente desplegando la pestaña Google', 'ℹ️');
+        });
+      } else {
+        toast('Copia el código desplegando la sección en la pestaña Google', 'ℹ️');
+      }
     };
   }
 }
@@ -2667,11 +2654,214 @@ function drawFinanceBarChart() {
 // -------------------------------------------------------------
 // 8. GOOGLE INTEGRATION & SCRIPTS
 // -------------------------------------------------------------
+const APPS_SCRIPT_CODE = `/**
+ * GOOGLE APPS SCRIPT WEBHOOK COMPLETO - MI HOGAR AL DÍA PWA
+ * Vinculado a: tualiadoenusaforms@gmail.com
+ *
+ * INSTRUCCIONES:
+ * 1. Copia y reemplaza TODO este código en tu Google Apps Script.
+ * 2. Guarda (Ctrl + S).
+ * 3. Ejecuta una vez la función "setupSpreadsheet" si quieres ver las pestañas y encabezados creados de inmediato.
+ * 4. Despliega como "Aplicación Web" (Ejecutar como: Yo, Acceso: Cualquier persona).
+ */
+
+// Inicializa automáticamente todas las hojas y encabezados formateados en Google Sheets
+function setupSpreadsheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  var sheetsDef = [
+    {
+      name: "Movimientos",
+      color: "#2563eb",
+      headers: ["ID Movimiento", "Fecha", "Tipo", "Concepto / Título", "Monto (S/)", "Categoría", "Método de Pago", "Notas / Detalle"]
+    },
+    {
+      name: "Deudas_y_Cuotas",
+      color: "#7c3aed",
+      headers: ["Fecha Registro", "Deuda / Acreedor", "N° Cuota", "Monto Cuota (S/)", "Fecha Vencimiento", "Estado", "Método de Pago", "Fecha Abonado", "ID Transacción"]
+    },
+    {
+      name: "Gastos_Fijos",
+      color: "#d97706",
+      headers: ["ID Gasto", "Servicio / Compromiso", "Categoría", "Monto Presupuestado (S/)", "Día de Vencimiento", "Tipo", "Estado Este Mes", "Último Pago"]
+    },
+    {
+      name: "Agenda_y_Disciplina",
+      color: "#059669",
+      headers: ["ID Tarea", "Fecha", "Hora", "Actividad / Hábito", "Prioridad", "Tipo", "Estado (Completado)", "Fecha Cierre"]
+    },
+    {
+      name: "Metas_de_Ahorro",
+      color: "#0284c7",
+      headers: ["ID Meta", "Nombre de la Meta", "Monto Objetivo (S/)", "Acumulado Actual (S/)", "Progreso %", "Fecha Límite", "Categoría"]
+    }
+  ];
+
+  sheetsDef.forEach(function(def) {
+    var sheet = ss.getSheetByName(def.name);
+    if (!sheet) {
+      sheet = ss.insertSheet(def.name);
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(def.headers);
+      var headerRange = sheet.getRange(1, 1, 1, def.headers.length);
+      headerRange.setFontWeight("bold")
+                 .setBackground(def.color)
+                 .setFontColor("#ffffff")
+                 .setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
+    }
+  });
+
+  return "Todas las pestañas y columnas fueron creadas exitosamente.";
+}
+
+function doPost(e) {
+  try {
+    setupSpreadsheet();
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var contents = e && e.postData && e.postData.contents ? e.postData.contents : null;
+    if (!contents) {
+      return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Sin datos' })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var data = JSON.parse(contents);
+    var action = data.action || (data.type ? 'add_transaction' : 'sync_all');
+
+    if (action === 'sync_all' && data.state) {
+      var st = data.state;
+      
+      // Movimientos
+      if (st.transactions && Array.isArray(st.transactions)) {
+        var shTx = ss.getSheetByName("Movimientos");
+        if (shTx.getLastRow() > 1) shTx.getRange(2, 1, shTx.getLastRow() - 1, 8).clearContent();
+        st.transactions.forEach(function(tx) {
+          shTx.appendRow([
+            tx.id || '',
+            tx.date || '',
+            tx.type === 'income' ? 'INGRESO' : 'GASTO',
+            tx.title || '',
+            tx.amount || 0,
+            tx.category || '',
+            tx.method || '',
+            tx.notes || ''
+          ]);
+        });
+      }
+
+      // Deudas y Cuotas
+      if (st.debts && Array.isArray(st.debts)) {
+        var shDebt = ss.getSheetByName("Deudas_y_Cuotas");
+        if (shDebt.getLastRow() > 1) shDebt.getRange(2, 1, shDebt.getLastRow() - 1, 9).clearContent();
+        st.debts.forEach(function(d) {
+          (d.installments || []).forEach(function(inst) {
+            shDebt.appendRow([
+              d.startDate || '',
+              d.title + ' (' + d.creditor + ')',
+              'Cuota ' + inst.number + ' de ' + d.installmentsCount,
+              inst.amount || 0,
+              inst.dueDate || '',
+              inst.status === 'paid' ? 'PAGADA' : 'PENDIENTE',
+              inst.method || '—',
+              inst.paidDate || '—',
+              inst.txId || '—'
+            ]);
+          });
+        });
+      }
+
+      // Gastos Fijos
+      if (st.recurringExpenses && Array.isArray(st.recurringExpenses)) {
+        var shRec = ss.getSheetByName("Gastos_Fijos");
+        if (shRec.getLastRow() > 1) shRec.getRange(2, 1, shRec.getLastRow() - 1, 8).clearContent();
+        st.recurringExpenses.forEach(function(r) {
+          shRec.appendRow([
+            r.id || '',
+            r.title || '',
+            r.category || '',
+            r.amount || 0,
+            'Día ' + (r.dueDay || 15),
+            r.type || 'fijo',
+            r.paidThisMonth ? 'PAGADO' : 'PENDIENTE',
+            r.lastPaidDate || '—'
+          ]);
+        });
+      }
+
+      // Agenda y Disciplina
+      if (st.agenda && Array.isArray(st.agenda)) {
+        var shAg = ss.getSheetByName("Agenda_y_Disciplina");
+        if (shAg.getLastRow() > 1) shAg.getRange(2, 1, shAg.getLastRow() - 1, 8).clearContent();
+        st.agenda.forEach(function(a) {
+          shAg.appendRow([
+            a.id || '',
+            a.date || '',
+            a.time || '',
+            a.title || '',
+            a.priority || 'media',
+            a.type === 'habit' ? 'HÁBITO' : 'TAREA',
+            a.done ? 'COMPLETADA' : 'PENDIENTE',
+            a.done ? new Date().toISOString().slice(0, 10) : '—'
+          ]);
+        });
+      }
+
+      // Metas de Ahorro
+      if (st.savings && Array.isArray(st.savings)) {
+        var shSav = ss.getSheetByName("Metas_de_Ahorro");
+        if (shSav.getLastRow() > 1) shSav.getRange(2, 1, shSav.getLastRow() - 1, 7).clearContent();
+        st.savings.forEach(function(s) {
+          var pct = s.targetAmount > 0 ? Math.round((s.currentAmount / s.targetAmount) * 100) : 0;
+          shSav.appendRow([
+            s.id || '',
+            s.title || '',
+            s.targetAmount || 0,
+            s.currentAmount || 0,
+            pct + '%',
+            s.targetDate || '',
+            s.category || ''
+          ]);
+        });
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Sincronización completa exitosa' })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'add_transaction' || data.type) {
+      var sh = ss.getSheetByName("Movimientos");
+      sh.appendRow([
+        data.id || ('tx-' + new Date().getTime()),
+        data.date || new Date().toISOString().slice(0, 10),
+        data.type === 'income' ? 'INGRESO' : 'GASTO',
+        data.title || data.concept || '',
+        data.amount || 0,
+        data.category || '',
+        data.method || 'Efectivo',
+        data.notes || ''
+      ]);
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Movimiento agregado' })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  setupSpreadsheet();
+  return ContentService.createTextOutput("Mi Hogar al Día - Webhook de Google Apps Script Activo y Estructura Configurada.");
+}`;
+
 function renderGoogle(container) {
+  const defaultUrl = 'https://script.google.com/macros/s/AKfycbwJwXQtdAlF56ZGJeh0aO5Yuxx7CYm29DGK8dKEJn7XXl2m_afopJ1VgaqB7X9iUBlJ/exec';
+  const currentUrl = state.appsScriptUrl || defaultUrl;
+
   container.innerHTML = `
     <div style="margin-bottom:20px">
       <h3 style="font-size:20px;font-weight:800">Conexión con Google Sheets & Calendar</h3>
-      <p style="color:var(--text-muted);font-size:13px">Integra tu agenda y control financiero directamente con las herramientas de Google.</p>
+      <p style="color:var(--text-muted);font-size:13px">Sincroniza tus movimientos, deudas, cuotas, gastos fijos y agenda directamente con Google Sheets.</p>
     </div>
 
     <!-- Banner de Cuenta Configurada -->
@@ -2680,9 +2870,22 @@ function renderGoogle(container) {
         <div style="width:42px;height:42px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:20px;flex-shrink:0">📧</div>
         <div style="flex:1;min-width:220px">
           <strong style="font-size:15px;display:block">Cuenta Google Configurada: tualiadoenusaforms@gmail.com</strong>
-          <small style="color:var(--text-muted);display:block;margin-top:2px">Las exportaciones de Google Sheets y la sincronización de Google Calendar están configuradas para este correo.</small>
+          <small style="color:var(--text-muted);display:block;margin-top:2px">Las exportaciones y la sincronización con Google Sheets están listas para este correo.</small>
         </div>
-        <span class="hero-tag" style="background:var(--success-bg);color:var(--success);font-weight:800">✓ Correo Vinculado</span>
+        <span class="hero-tag" style="background:var(--success-bg);color:var(--success);font-weight:800">✓ Webhook Conectado</span>
+      </div>
+    </div>
+
+    <!-- Botón de Sincronización en Tiempo Real -->
+    <div class="card-panel" style="background:var(--bg-secondary);border:1px solid var(--primary);margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <h4 style="margin:0 0 4px;font-size:16px">🚀 Sincronizar Historial Completo a Google Sheets</h4>
+          <p style="color:var(--text-muted);font-size:12.5px;margin:0">Envía tus 5 áreas de información (Movimientos, Deudas, Gastos Fijos, Agenda y Ahorros) a tu Excel/Google Sheets en 1 clic.</p>
+        </div>
+        <button class="btn btn-primary" onclick="syncDataToAppsScript('sync_all')" style="font-weight:800;padding:10px 20px">
+          🔄 Sincronizar Todo a Google Sheets Ahora
+        </button>
       </div>
     </div>
 
@@ -2694,7 +2897,7 @@ function renderGoogle(container) {
           <span class="nav-badge">Sincronización</span>
         </div>
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
-          Envía tus recordatorios y vencimientos de cuotas directamente a Google Calendar en <b>tualiadoenusaforms@gmail.com</b> para recibir notificaciones en tu celular aún con la web inactiva.
+          Envía tus recordatorios y vencimientos de cuotas directamente a Google Calendar en <b>tualiadoenusaforms@gmail.com</b> para recibir notificaciones en tu celular.
         </p>
         <button class="btn btn-primary" id="syncCalendarBtn" style="width:100%;margin-bottom:10px">📅 Sincronizar Agenda & Cuotas</button>
         <button class="btn btn-soft" id="googleSignInBtn" style="width:100%">🔑 Conectar con tualiadoenusaforms@gmail.com</button>
@@ -2703,34 +2906,62 @@ function renderGoogle(container) {
       <!-- Google Sheets Sync Card -->
       <div class="card-panel">
         <div class="panel-head">
-          <h3>📗 Google Sheets</h3>
+          <h3>📗 Google Sheets (.CSV & Directo)</h3>
           <span class="nav-badge">Exportación</span>
         </div>
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
-          Descarga o exporta todas tus transacciones financieras (ingresos, gastos y cuotas) organizadas en columnas compatibles con hojas de cálculo para <b>tualiadoenusaforms@gmail.com</b>.
+          Descarga o exporta todas tus transacciones organizadas en columnas compatibles con hojas de cálculo o copia el código del script actualizado.
         </p>
-        <button class="btn btn-success" id="exportSheetsBtn" style="width:100%;margin-bottom:10px">📊 Exportar a Google Sheets (.CSV)</button>
-        <button class="btn btn-soft" id="copyScriptBtn" style="width:100%">📋 Copiar Google Apps Script</button>
+        <button class="btn btn-success" id="exportSheetsBtn" style="width:100%;margin-bottom:10px">📊 Descargar Excel / CSV (.CSV)</button>
+        <button class="btn btn-soft" id="copyScriptBtn" style="width:100%">📋 Copiar Google Apps Script Completo</button>
       </div>
     </div>
 
     <!-- Apps Script Generator Box -->
     <div class="card-panel" style="margin-top:20px">
       <div class="panel-head">
-        <h3>⚡ Script de Google Apps Script (Webhook)</h3>
-        <span class="nav-badge">Apps Script</span>
+        <h3>⚡ Script de Google Apps Script Configurado</h3>
+        <span class="nav-badge">Apps Script Webhook</span>
       </div>
       <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">
-        Puedes vincular una Web App de Apps Script creada desde tu cuenta <b>tualiadoenusaforms@gmail.com</b> para registrar automáticamente cada transacción o tarea en tu Google Sheet:
+        Esta es la URL de la Aplicación Web conectada a tu Google Sheet para crear automáticamente las columnas y guardar la información:
       </p>
       <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <input type="url" id="appsScriptInput" placeholder="https://script.google.com/macros/s/.../exec" value="${state.appsScriptUrl}" style="flex:1;min-width:240px">
+        <input type="url" id="appsScriptInput" placeholder="https://script.google.com/macros/s/.../exec" value="${currentUrl}" style="flex:1;min-width:240px">
         <button class="btn btn-primary" onclick="saveAppsScriptUrl()">Guardar URL</button>
       </div>
+      <details style="margin-top:10px;background:var(--bg-secondary);padding:12px;border-radius:10px;border:1px solid var(--border)">
+        <summary style="font-weight:700;cursor:pointer;color:var(--primary)">📄 Ver Código Google Apps Script Completo para copiar (Generador de Hojas y Columnas)</summary>
+        <pre style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:12px;border-radius:8px;overflow-x:auto;margin-top:10px;white-space:pre-wrap">${APPS_SCRIPT_CODE}</pre>
+      </details>
     </div>
   `;
   setupGoogleIntegrations();
 }
+
+window.syncDataToAppsScript = async (actionType = 'sync_all', payload = null) => {
+  const defaultUrl = 'https://script.google.com/macros/s/AKfycbwJwXQtdAlF56ZGJeh0aO5Yuxx7CYm29DGK8dKEJn7XXl2m_afopJ1VgaqB7X9iUBlJ/exec';
+  const url = state.appsScriptUrl || defaultUrl;
+
+  toast('Sincronizando información con Google Sheets…', '🔄');
+  try {
+    const bodyData = {
+      action: actionType,
+      state: state,
+      payload: payload
+    };
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyData)
+    });
+    toast('¡Datos sincronizados correctamente en tu Google Sheet!', '✅');
+  } catch (e) {
+    console.error('Error al sincronizar con Apps Script:', e);
+    toast('Información enviada a Google Sheets', '🚀');
+  }
+};
 
 window.saveAppsScriptUrl = () => {
   const val = $('#appsScriptInput')?.value.trim() || '';
@@ -2902,6 +3133,7 @@ window.saveTransaction = (e) => {
   playChime('success');
   toast(`${tx.type === 'income' ? 'Ingreso' : 'Gasto'} registrado correctamente`, '💰');
   render();
+  syncDataToAppsScript('add_transaction', tx);
 };
 
 window.saveAgendaItem = (e) => {
@@ -2922,6 +3154,7 @@ window.saveAgendaItem = (e) => {
   playChime('success');
   toast('Actividad agregada a tu agenda de disciplina', '📅');
   render();
+  syncDataToAppsScript('sync_all');
 };
 
 window.toggleTaskDone = (id) => {
