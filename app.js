@@ -24,103 +24,44 @@ let state = {
     monthlyBudget: 1500
   },
   googleEmail: 'tualiadoenusaforms@gmail.com',
-  transactions: [
-    { id: 'tx-1', type: 'income', title: 'Ingreso Principal', amount: 2500, category: 'Sueldo', date: todayStr(), method: 'Transferencia', notes: 'Mensualidad' },
-    { id: 'tx-2', type: 'expense', title: 'Alimentación Semanal', amount: 240, category: 'Alimentación', date: todayStr(), method: 'Yape / Plin', notes: 'Supermercado' },
-    { id: 'tx-3', type: 'expense', title: 'Servicio de Internet y Luz', amount: 165, category: 'Servicios', date: todayStr(), method: 'Tarjeta', notes: 'Servicios básicos' },
-    { id: 'tx-4', type: 'expense', title: 'Pago Cuota 2/6 · Tarjeta de Crédito BCP', amount: 300, category: 'Pago de Deuda / Cuotas', date: todayStr(), method: 'Transferencia', notes: 'Amortización cuota mensual' }
-  ],
-  debts: [
-    {
-      id: 'debt-1',
-      title: 'Tarjeta de Crédito BCP Visa',
-      creditor: 'Banco BCP',
-      category: 'Tarjeta de Crédito',
-      totalAmount: 1800,
-      installmentsCount: 6,
-      installmentAmount: 300,
-      startDate: '2026-08-15',
-      dueDay: 15,
-      frequency: 'monthly',
-      notes: 'Compras en 6 cuotas fijas',
-      installments: [
-        { number: 1, amount: 300, dueDate: '2026-08-15', status: 'paid', paidDate: '2026-08-14', txId: 'tx-init-1', method: 'Transferencia' },
-        { number: 2, amount: 300, dueDate: '2026-09-15', status: 'paid', paidDate: '2026-09-14', txId: 'tx-init-2', method: 'Transferencia' },
-        { number: 3, amount: 300, dueDate: '2026-10-15', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 4, amount: 300, dueDate: '2026-11-15', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 5, amount: 300, dueDate: '2026-12-15', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 6, amount: 300, dueDate: '2027-01-15', status: 'pending', paidDate: null, txId: null, method: null }
-      ]
-    },
-    {
-      id: 'debt-2',
-      title: 'Préstamo Equipamiento de Trabajo',
-      creditor: 'Financiera BBVA',
-      category: 'Préstamo Bancario',
-      totalAmount: 3600,
-      installmentsCount: 12,
-      installmentAmount: 300,
-      startDate: '2026-09-28',
-      dueDay: 28,
-      frequency: 'monthly',
-      notes: 'Equipos y mejoras productivas',
-      installments: [
-        { number: 1, amount: 300, dueDate: '2026-09-28', status: 'paid', paidDate: '2026-09-27', txId: 'tx-init-3', method: 'Yape / Plin' },
-        { number: 2, amount: 300, dueDate: '2026-10-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 3, amount: 300, dueDate: '2026-11-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 4, amount: 300, dueDate: '2026-12-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 5, amount: 300, dueDate: '2027-01-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 6, amount: 300, dueDate: '2027-02-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 7, amount: 300, dueDate: '2027-03-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 8, amount: 300, dueDate: '2027-04-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 9, amount: 300, dueDate: '2027-05-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 10, amount: 300, dueDate: '2027-06-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 11, amount: 300, dueDate: '2027-07-28', status: 'pending', paidDate: null, txId: null, method: null },
-        { number: 12, amount: 300, dueDate: '2027-08-28', status: 'pending', paidDate: null, txId: null, method: null }
-      ]
-    }
-  ],
-  savings: [
-    { id: 'sav-1', title: 'Fondo de Emergencia (3 meses)', targetAmount: 3000, currentAmount: 1250, targetDate: '2026-12-31', category: 'Fondo de Emergencia' },
-    { id: 'sav-2', title: 'Nueva Computadora / Herramientas', targetAmount: 2200, currentAmount: 850, targetDate: '2027-02-28', category: 'Inversión / Negocio' }
-  ],
-  agenda: [
-    { id: 'ag-1', title: 'Planificación matutina y lectura (20 min)', time: '07:00', priority: 'high', type: 'habit', done: true, date: todayStr() },
-    { id: 'ag-2', title: 'Revisión y registro de finanzas del día', time: '13:00', priority: 'high', type: 'task', done: false, date: todayStr() },
-    { id: 'ag-3', title: 'Cierre de objetivos y preparación de agenda mañana', time: '21:00', priority: 'mid', type: 'habit', done: false, date: todayStr() }
-  ],
+  transactions: [],
+  debts: [],
+  savings: [],
+  agenda: [],
   pomodoro: {
     mode: 'work',
     timeLeft: 25 * 60,
     running: false,
     timer: null,
-    sessionsCompleted: 3,
+    sessionsCompleted: 0,
     selectedTaskId: null
   },
-  recurringExpenses: [
-    { id: 'rec-1', title: 'Luz (Electricidad)', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 95.00, dueDay: 18, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-2', title: 'Agua potable', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 45.00, dueDay: 20, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-3', title: 'Gas natural / balón', category: 'Servicios Básicos (Luz, Agua, Gas)', amount: 65.00, dueDay: 15, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-4', title: 'Planes Celulares', category: 'Telecomunicaciones (Celular, Internet)', amount: 70.00, dueDay: 12, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-5', title: 'Internet Fibra Óptica', category: 'Telecomunicaciones (Celular, Internet)', amount: 110.00, dueDay: 10, type: 'fixed', paidThisMonth: true, lastPaidDate: todayStr() },
-    { id: 'rec-6', title: 'Préstamo a papá', category: 'Préstamo Familiar / Personal', amount: 200.00, dueDay: 25, type: 'fixed', paidThisMonth: false, lastPaidDate: null },
-    { id: 'rec-7', title: 'Alimentación Fija / Mercado', category: 'Alimentación Fija', amount: 600.00, dueDay: 30, type: 'variable', paidThisMonth: false, lastPaidDate: null }
-  ],
+  recurringExpenses: [],
   googleToken: null,
   appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
   notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted'
 };
 
-// Cargar estado persistente de localStorage
+// Cargar estado persistente de localStorage y filtrar datos de muestra
 try {
   const saved = localStorage.getItem(STATE_KEY);
   if (saved) {
     const parsed = JSON.parse(saved);
-    if (parsed.transactions) state.transactions = parsed.transactions;
-    if (parsed.debts) state.debts = parsed.debts;
-    if (parsed.savings) state.savings = parsed.savings;
-    if (parsed.recurringExpenses) state.recurringExpenses = parsed.recurringExpenses;
-    if (parsed.agenda) state.agenda = parsed.agenda;
+    if (parsed.transactions) {
+      state.transactions = parsed.transactions.filter(t => !['tx-1', 'tx-2', 'tx-3', 'tx-4', 'tx-ingreso-base'].includes(t.id));
+    }
+    if (parsed.debts) {
+      state.debts = parsed.debts.filter(d => !['debt-1', 'debt-2'].includes(d.id));
+    }
+    if (parsed.savings) {
+      state.savings = parsed.savings.filter(s => !['sav-1', 'sav-2'].includes(s.id));
+    }
+    if (parsed.recurringExpenses) {
+      state.recurringExpenses = parsed.recurringExpenses.filter(r => !['rec-1', 'rec-2', 'rec-3', 'rec-4', 'rec-5', 'rec-6', 'rec-7'].includes(r.id));
+    }
+    if (parsed.agenda) {
+      state.agenda = parsed.agenda.filter(a => !['ag-1', 'ag-2', 'ag-3'].includes(a.id));
+    }
     if (parsed.view) state.view = parsed.view;
     if (parsed.theme) state.theme = parsed.theme;
     if (parsed.appsScriptUrl) state.appsScriptUrl = parsed.appsScriptUrl;
@@ -129,6 +70,27 @@ try {
 } catch (e) {
   console.warn('Error al cargar datos previos:', e);
 }
+
+// Guardar de inmediato para persistir la limpieza de datos de muestra
+saveState();
+
+// Cargar configuración de Vercel Environment Variables
+async function loadVercelEnvConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.appsScriptUrl) {
+        state.appsScriptUrl = data.appsScriptUrl;
+        saveState();
+        if ($('#appsScriptInput')) $('#appsScriptInput').value = data.appsScriptUrl;
+      }
+    }
+  } catch (e) {
+    // Si no está en Vercel/Node o falla el endpoint, continuar con estado local
+  }
+}
+loadVercelEnvConfig();
 
 function saveState() {
   localStorage.setItem(STATE_KEY, JSON.stringify({
@@ -2951,8 +2913,26 @@ window.syncDataToAppsScript = async (actionType = 'sync_all', payload = null) =>
     const bodyData = {
       action: actionType,
       state: state,
-      payload: payload
+      payload: payload,
+      appsScriptUrl: url
     };
+
+    // 1. Intentar primero a través del proxy Serverless de Vercel (/api/sync)
+    try {
+      const proxyRes = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData)
+      });
+      if (proxyRes.ok) {
+        toast('¡Datos sincronizados correctamente en tu Google Sheet!', '✅');
+        return;
+      }
+    } catch (errProxy) {
+      // Continuar al envío directo si el proxy no responde (por ejemplo en hosting estático puro)
+    }
+
+    // 2. Fallback a envío directo a Google Apps Script Webhook
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
@@ -3058,11 +3038,26 @@ function renderSeguridad(container) {
           📤 Restaurar Backup
           <input type="file" accept=".json" onchange="importJsonBackup(event)" style="display:none">
         </label>
+        <button class="btn btn-danger" onclick="clearAllSampleData()">🧹 Limpiar Todos los Datos (Reiniciar a 0)</button>
       </div>
     </div>
   `;
   setupNotifications();
 }
+
+window.clearAllSampleData = (confirmFirst = true) => {
+  if (confirmFirst && !confirm('¿Estás seguro de que deseas eliminar TODOS los datos y comenzar totalmente desde cero con tus registros reales?')) {
+    return;
+  }
+  state.transactions = [];
+  state.debts = [];
+  state.savings = [];
+  state.agenda = [];
+  state.recurringExpenses = [];
+  saveState();
+  toast('¡Todos los datos han sido limpiados! La aplicación está lista a 0.', '🧹');
+  render();
+};
 
 window.exportJsonBackup = () => {
   const data = JSON.stringify(state, null, 2);
