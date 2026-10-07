@@ -64,6 +64,9 @@
       <button class="nav-btn" data-nav="seguridad">
         <i>🔐</i> <span>Seguridad 2 Pasos</span>
       </button>
+      <button class="nav-btn" style="color:#ef4444;margin-top:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25)" onclick="lockSession()">
+        <i>🔒</i> <span>Bloquear / Salir</span>
+      </button>
     </nav>
 
     <div class="side-discipline-box">
@@ -87,8 +90,8 @@
 
       <div class="top-right">
         <div class="badge-streak" id="streakBadge">🔥 7 días racha</div>
-        <button class="btn-quick-pin" id="pinLockToggle" title="Bloquear con PIN de 2 pasos">
-          <span>🔒</span> <span>PIN</span>
+        <button class="btn-quick-pin" id="pinLockToggle" onclick="lockSession()" title="Bloquear pantalla / Cerrar sesión">
+          <span>🔒</span> <span>Bloquear / Salir</span>
         </button>
         <div class="user-chip" id="userChip" style="cursor:pointer" title="Configurar perfil de usuario">
           <div class="avatar-circle">JH</div>
@@ -264,8 +267,11 @@
       <button class="pin-btn" onclick="onPinPress('0')">0</button>
       <button class="pin-btn" onclick="closeModal('pinModal')">↩</button>
     </div>
-    <div style="margin-top:14px">
-      <button type="button" class="btn btn-sm btn-soft" style="width:100%;font-size:12.5px" onclick="closeModal('pinModal'); openUserModal();">⚙️ ¿Deseas cambiar tu PIN actual? Toca aquí</button>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      <button type="button" class="btn btn-primary" id="bioAuthBtn" style="width:100%;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px" onclick="authenticateWithBiometrics()">
+        <span style="font-size:18px">👆</span> Ingresar con Huella Digital / Face ID
+      </button>
+      <button type="button" class="btn btn-sm btn-soft" style="width:100%;font-size:12.5px" onclick="closeModal('pinModal'); openUserModal();">⚙️ Cambiar tu PIN o Registrar Huella</button>
     </div>
   </div>
 </div>
@@ -289,6 +295,13 @@
       <div class="form-group">
         <label>PIN de Seguridad (4 dígitos)</label>
         <input type="password" id="userPinInput" maxlength="4" pattern="[0-9]{4}" placeholder="Ej: 1234">
+      </div>
+      <div style="background:var(--bg-secondary);padding:12px;border-radius:10px;margin-bottom:10px;border:1px solid var(--border)">
+        <label style="font-weight:700;display:block;margin-bottom:4px">👆 Acceso por Huella Digital / Face ID</label>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Ingresa rápido a la app escaneando tu huella en el sensor de tu celular o laptop.</p>
+        <button type="button" class="btn btn-soft" style="width:100%;font-weight:700" onclick="registerBiometrics()">
+          👆 Registrar / Probar Mi Huella Digital
+        </button>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
         <button type="button" class="btn btn-soft" onclick="closeModal('userModal')">Cancelar</button>

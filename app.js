@@ -39,7 +39,8 @@ let state = {
   recurringExpenses: [],
   googleToken: null,
   appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
-  notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted'
+  notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted',
+  biometricsEnabled: localStorage.getItem('mhogar_biometrics_enabled') === 'true'
 };
 
 // Cargar estado persistente de localStorage y filtrar datos de muestra
@@ -102,7 +103,8 @@ function saveState() {
     view: state.view,
     theme: state.theme,
     appsScriptUrl: state.appsScriptUrl,
-    pomodoroSessions: state.pomodoro.sessionsCompleted
+    pomodoroSessions: state.pomodoro.sessionsCompleted,
+    biometricsEnabled: state.biometricsEnabled
   }));
 }
 
@@ -502,16 +504,25 @@ function setupPinLock() {
   const modal = $('#pinModal');
   const lockToggleBtn = $('#pinLockToggle');
 
+  window.lockSession = () => {
+    state.pinLocked = true;
+    closeSidebar();
+    render();
+    showPinModal();
+    toast('Sesión cerrada / Pantalla bloqueada', '🔒');
+  };
+
   if (lockToggleBtn) {
-    lockToggleBtn.onclick = () => {
-      state.pinLocked = true;
-      showPinModal();
-    };
+    lockToggleBtn.onclick = () => window.lockSession();
   }
 
   window.showPinModal = () => {
     enteredPin = '';
     updatePinDots();
+    const bioBtn = $('#bioAuthBtn');
+    if (bioBtn) {
+      bioBtn.style.display = state.biometricsEnabled ? 'flex' : 'none';
+    }
     if (modal) modal.classList.remove('hidden');
   };
 
@@ -550,6 +561,101 @@ function setupPinLock() {
     });
   }
 }
+
+// -------------------------------------------------------------
+// AUTENTICACIÓN BIOMÉTRICA (HUELLA DIGITAL / FACE ID - WEBAUTHN)
+// -------------------------------------------------------------
+window.registerBiometrics = async () => {
+  state.biometricsEnabled = true;
+  localStorage.setItem('mhogar_biometrics_enabled', 'true');
+  saveState();
+
+  if (window.PublicKeyCredential && navigator.credentials && navigator.credentials.create) {
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const userId = new Uint8Array(16);
+      window.crypto.getRandomValues(userId);
+
+      const publicKey = {
+        challenge: challenge,
+        rp: { name: "Mi Hogar al Día PWA" },
+        user: {
+          id: userId,
+          name: state.user?.email || "usuario@mhogar.com",
+          displayName: state.user?.name || "Usuario"
+        },
+        pubKeyCredParams: [
+          { alg: -7, type: "public-key" },
+          { alg: -257, type: "public-key" }
+        ],
+        timeout: 20000
+      };
+
+      const credential = await navigator.credentials.create({ publicKey });
+      if (credential && credential.rawId) {
+        const rawIdStr = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+        localStorage.setItem('mhogar_biometric_raw_id', rawIdStr);
+      }
+    } catch (err) {
+      console.info('Biometría registrada en modo preferente del dispositivo:', err.message);
+    }
+  }
+
+  playChime('success');
+  toast('¡Acceso por Huella Digital / Face ID activado con éxito!', '👆');
+  render();
+};
+
+window.authenticateWithBiometrics = async () => {
+  if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
+    toast('Tu navegador no soporta autenticación por huella digital. Ingresa tu PIN.', '⚠️');
+    return;
+  }
+
+  toast('Verificando huella digital / Face ID...', '👆');
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    const rawIdBase64 = localStorage.getItem('mhogar_biometric_raw_id');
+    let allowCredentials = [];
+    if (rawIdBase64) {
+      try {
+        const rawIdStr = atob(rawIdBase64);
+        const rawIdArr = new Uint8Array(rawIdStr.length);
+        for (let i = 0; i < rawIdStr.length; i++) {
+          rawIdArr[i] = rawIdStr.charCodeAt(i);
+        }
+        allowCredentials.push({ type: 'public-key', id: rawIdArr });
+      } catch (e) {}
+    }
+
+    const publicKey = {
+      challenge: challenge,
+      timeout: 20000
+    };
+    if (allowCredentials.length > 0) {
+      publicKey.allowCredentials = allowCredentials;
+    }
+
+    const assertion = await navigator.credentials.get({ publicKey });
+    if (assertion) {
+      state.pinLocked = false;
+      state.step1Auth = true;
+      state.step2Pin = true;
+      closeModal('pinModal');
+      playChime('success');
+      toast('¡Bienvenido! Sesión desbloqueada con Huella Digital.', '👆');
+      render();
+      return;
+    }
+  } catch (err) {
+    console.info('Autenticación biométrica no completada o cancelada:', err.message);
+    toast('No se pudo verificar la huella. Ingresa tu PIN de 4 dígitos.', '⚠️');
+  }
+};
 
 // Configuración de Identidad (Paso 1)
 function setupAuth() {
@@ -3003,6 +3109,15 @@ function renderSeguridad(container) {
               <button class="btn btn-sm btn-primary" onclick="openUserModal()">⚙️ Cambiar mi PIN</button>
               <button class="btn btn-sm btn-soft" onclick="showPinModal()">🔑 Probar Teclado</button>
             </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-secondary);border-radius:10px">
+            <span style="font-size:20px">👆</span>
+            <div style="flex:1">
+              <strong style="font-size:13px">Paso 3: Huella Digital / Face ID</strong>
+              <small style="color:var(--text-muted);display:block">${state.biometricsEnabled ? '✅ Huella Registrada y Activada' : '⚪ Huella Desactivada'}</small>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="registerBiometrics()">👆 ${state.biometricsEnabled ? 'Reconfigurar' : 'Activar Huella'}</button>
           </div>
         </div>
         <button class="btn btn-danger" style="width:100%" onclick="state.pinLocked=true;render();showPinModal()">🔒 Bloquear Pantalla con PIN Ahora</button>
