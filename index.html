@@ -263,15 +263,15 @@
       <button class="pin-btn" onclick="onPinPress('7')">7</button>
       <button class="pin-btn" onclick="onPinPress('8')">8</button>
       <button class="pin-btn" onclick="onPinPress('9')">9</button>
-      <button class="pin-btn" onclick="onPinClear()">✕</button>
+      <button class="pin-btn" onclick="onPinClear()" title="Limpiar todo">✕</button>
       <button class="pin-btn" onclick="onPinPress('0')">0</button>
-      <button class="pin-btn" onclick="closeModal('pinModal')">↩</button>
+      <button class="pin-btn" onclick="onPinBackspace()" title="Borrar último dígito">⌫</button>
     </div>
     <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
       <button type="button" class="btn btn-primary" id="bioAuthBtn" style="width:100%;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px" onclick="authenticateWithBiometrics()">
         <span style="font-size:18px">👆</span> Ingresar con Huella Digital / Face ID
       </button>
-      <button type="button" class="btn btn-sm btn-soft" style="width:100%;font-size:12.5px" onclick="closeModal('pinModal'); openUserModal();">⚙️ Cambiar tu PIN o Registrar Huella</button>
+      <button type="button" class="btn btn-sm btn-soft" style="width:100%;font-size:12.5px" onclick="if (!state.pinLocked) { closeModal('pinModal'); openUserModal(); } else { toast('Primero desbloquea con tu huella o PIN', '🔒'); }">⚙️ Configurar PIN o Huella</button>
     </div>
   </div>
 </div>
@@ -782,6 +782,6 @@
   }
 </script>
 
-<script src="app.js?v=6.3.2"></script>
+<script src="app.js?v=6.3.3"></script>
 </body>
 </html>

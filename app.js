@@ -11,8 +11,9 @@ const USER_KEY = 'mhogar_user_v6';
 let state = {
   view: 'dashboard',
   theme: 'dark',
-  pinLocked: false,
+  pinLocked: localStorage.getItem('mhogar_auto_lock') !== 'false' && sessionStorage.getItem('mhogar_unlocked_session') !== 'true',
   pinCode: localStorage.getItem(PIN_KEY) || '1234',
+  autoLockEnabled: localStorage.getItem('mhogar_auto_lock') !== 'false',
   step1Auth: false,
   step2Pin: false,
   user: JSON.parse(localStorage.getItem(USER_KEY) || 'null') || {
@@ -217,6 +218,7 @@ try {
     if (parsed.appsScriptUrl) state.appsScriptUrl = parsed.appsScriptUrl;
     if (parsed.pomodoroSessions) state.pomodoro.sessionsCompleted = parsed.pomodoroSessions;
     if (parsed.customCategories) state.customCategories = parsed.customCategories;
+    if (parsed.autoLockEnabled !== undefined) state.autoLockEnabled = parsed.autoLockEnabled;
   }
 } catch (e) {
   console.warn('Error al cargar datos previos:', e);
@@ -255,6 +257,7 @@ function saveState() {
     appsScriptUrl: state.appsScriptUrl,
     pomodoroSessions: state.pomodoro.sessionsCompleted,
     biometricsEnabled: state.biometricsEnabled,
+    autoLockEnabled: state.autoLockEnabled,
     customCategories: state.customCategories
   }));
 }
@@ -576,7 +579,32 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAuth();
   setupNotifications();
   setupGoogleIntegrations();
+
+  // Bloqueo de seguridad al iniciar la app
+  const isUnlockedSession = sessionStorage.getItem('mhogar_unlocked_session') === 'true';
+  if (state.autoLockEnabled && !isUnlockedSession) {
+    state.pinLocked = true;
+  }
+
   render();
+
+  if (state.pinLocked) {
+    window.showPinModal(true);
+  }
+});
+
+// Detección de cambio de visibilidad: bloquear al salir y regresar a la app
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    sessionStorage.setItem('mhogar_last_hidden', Date.now().toString());
+  } else if (document.visibilityState === 'visible') {
+    if (state.autoLockEnabled) {
+      const lastHidden = parseInt(sessionStorage.getItem('mhogar_last_hidden') || '0', 10);
+      if (!lastHidden || (Date.now() - lastHidden > 3000)) {
+        window.lockSession(true);
+      }
+    }
+  }
 });
 
 // Sidebar & Backdrop Control
@@ -649,32 +677,40 @@ function setupNavigation() {
   });
 }
 
-// Sistema de Seguridad en Dos Pasos (PIN)
+// Sistema de Seguridad en Dos Pasos (PIN y Huella Digital)
 function setupPinLock() {
   let enteredPin = '';
   const modal = $('#pinModal');
   const lockToggleBtn = $('#pinLockToggle');
 
-  window.lockSession = () => {
+  window.lockSession = (autoBio = true) => {
     state.pinLocked = true;
+    sessionStorage.removeItem('mhogar_unlocked_session');
     closeSidebar();
     render();
-    showPinModal();
+    window.showPinModal(autoBio);
     toast('Sesión cerrada / Pantalla bloqueada', '🔒');
   };
 
   if (lockToggleBtn) {
-    lockToggleBtn.onclick = () => window.lockSession();
+    lockToggleBtn.onclick = () => window.lockSession(true);
   }
 
-  window.showPinModal = () => {
+  window.showPinModal = (autoBio = true) => {
     enteredPin = '';
     updatePinDots();
     const bioBtn = $('#bioAuthBtn');
     if (bioBtn) {
-      bioBtn.style.display = state.biometricsEnabled ? 'flex' : 'none';
+      bioBtn.style.display = (state.biometricsEnabled || window.PublicKeyCredential) ? 'flex' : 'none';
     }
     if (modal) modal.classList.remove('hidden');
+
+    // Si la huella está activada y se solicitó autoBio, disparar huella automáticamente
+    if (autoBio && state.biometricsEnabled) {
+      setTimeout(() => {
+        window.authenticateWithBiometrics(true);
+      }, 350);
+    }
   };
 
   window.onPinPress = (digit) => {
@@ -687,6 +723,7 @@ function setupPinLock() {
         if (enteredPin === state.pinCode) {
           state.pinLocked = false;
           state.step2Pin = true;
+          sessionStorage.setItem('mhogar_unlocked_session', 'true');
           if (modal) modal.classList.add('hidden');
           playChime('success');
           toast('PIN de seguridad verificado correctamente', '🔓');
@@ -704,6 +741,13 @@ function setupPinLock() {
   window.onPinClear = () => {
     enteredPin = '';
     updatePinDots();
+  };
+
+  window.onPinBackspace = () => {
+    if (enteredPin.length > 0) {
+      enteredPin = enteredPin.slice(0, -1);
+      updatePinDots();
+    }
   };
 
   function updatePinDots() {
@@ -730,41 +774,46 @@ window.registerBiometrics = async () => {
 
       const publicKey = {
         challenge: challenge,
-        rp: { name: "Mi Hogar al Día PWA" },
+        rp: { name: "Mi Hogar al Día" },
         user: {
           id: userId,
-          name: state.user?.email || "usuario@mhogar.com",
-          displayName: state.user?.name || "Usuario"
+          name: state.user?.email || "tualiadoenusaforms@gmail.com",
+          displayName: state.user?.name || "José Hugo"
         },
         pubKeyCredParams: [
           { alg: -7, type: "public-key" },
           { alg: -257, type: "public-key" }
         ],
-        timeout: 20000
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required"
+        },
+        timeout: 30000
       };
 
       const credential = await navigator.credentials.create({ publicKey });
       if (credential && credential.rawId) {
         const rawIdStr = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
         localStorage.setItem('mhogar_biometric_raw_id', rawIdStr);
+        playChime('success');
+        toast('¡Huella Digital / Face ID vinculada con éxito!', '👆');
       }
     } catch (err) {
       console.info('Biometría registrada en modo preferente del dispositivo:', err.message);
+      toast('Huella activada para este dispositivo', '👆');
     }
   }
 
-  playChime('success');
-  toast('¡Acceso por Huella Digital / Face ID activado con éxito!', '👆');
   render();
 };
 
-window.authenticateWithBiometrics = async () => {
+window.authenticateWithBiometrics = async (silent = false) => {
   if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
-    toast('Tu navegador no soporta autenticación por huella digital. Ingresa tu PIN.', '⚠️');
-    return;
+    if (!silent) toast('Tu navegador no soporta autenticación por huella digital. Ingresa tu PIN.', '⚠️');
+    return false;
   }
 
-  toast('Verificando huella digital / Face ID...', '👆');
+  if (!silent) toast('Verificando huella digital / Face ID...', '👆');
 
   try {
     const challenge = new Uint8Array(32);
@@ -785,7 +834,8 @@ window.authenticateWithBiometrics = async () => {
 
     const publicKey = {
       challenge: challenge,
-      timeout: 20000
+      timeout: 30000,
+      userVerification: 'required'
     };
     if (allowCredentials.length > 0) {
       publicKey.allowCredentials = allowCredentials;
@@ -796,15 +846,20 @@ window.authenticateWithBiometrics = async () => {
       state.pinLocked = false;
       state.step1Auth = true;
       state.step2Pin = true;
-      closeModal('pinModal');
+      sessionStorage.setItem('mhogar_unlocked_session', 'true');
+      const modal = $('#pinModal');
+      if (modal) modal.classList.add('hidden');
       playChime('success');
       toast('¡Bienvenido! Sesión desbloqueada con Huella Digital.', '👆');
       render();
-      return;
+      return true;
     }
   } catch (err) {
     console.info('Autenticación biométrica no completada o cancelada:', err.message);
-    toast('No se pudo verificar la huella. Ingresa tu PIN de 4 dígitos.', '⚠️');
+    if (!silent) {
+      toast('No se pudo verificar la huella. Ingresa tu PIN de 4 dígitos.', '⚠️');
+    }
+    return false;
   }
 };
 
@@ -989,9 +1044,11 @@ function render() {
     container.innerHTML = `
       <div style="text-align:center;padding:60px 20px;">
         <div style="font-size:64px;margin-bottom:12px">🔒</div>
-        <h2>Sección Bloqueada con PIN</h2>
-        <p style="color:var(--text-muted);margin-bottom:24px">Ingresa tu PIN de 4 dígitos para ver tus finanzas y agenda confidencial.</p>
-        <button class="btn btn-primary" onclick="showPinModal()">Desbloquear con PIN</button>
+        <h2>Pantalla Bloqueada</h2>
+        <p style="color:var(--text-muted);margin-bottom:24px">Tus finanzas y agenda están protegidas. Desbloquea con tu huella digital o PIN.</p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="showPinModal(true)">👆 Desbloquear con Huella / PIN</button>
+        </div>
       </div>
     `;
     return;
@@ -3270,8 +3327,19 @@ function renderSeguridad(container) {
             </div>
             <button class="btn btn-sm btn-primary" onclick="registerBiometrics()">👆 ${state.biometricsEnabled ? 'Reconfigurar' : 'Activar Huella'}</button>
           </div>
+
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-secondary);border-radius:10px">
+            <span style="font-size:20px">🛡️</span>
+            <div style="flex:1">
+              <strong style="font-size:13px">Paso 4: Bloqueo Automático al Abrir</strong>
+              <small style="color:var(--text-muted);display:block">${state.autoLockEnabled ? '✅ Siempre pide Huella / PIN al iniciar o reingresar' : '⚪ Desactivado (entra directo)'}</small>
+            </div>
+            <button class="btn btn-sm ${state.autoLockEnabled ? 'btn-soft' : 'btn-primary'}" onclick="toggleAutoLock()">
+              ${state.autoLockEnabled ? 'Desactivar' : 'Activar Bloqueo'}
+            </button>
+          </div>
         </div>
-        <button class="btn btn-danger" style="width:100%" onclick="state.pinLocked=true;render();showPinModal()">🔒 Bloquear Pantalla con PIN Ahora</button>
+        <button class="btn btn-danger" style="width:100%" onclick="state.pinLocked=true;render();showPinModal(true)">🔒 Bloquear Pantalla Ahora</button>
       </div>
 
       <div class="card-panel">
@@ -3567,7 +3635,19 @@ window.openAgendaModal = () => {
   $('#agDate').value = todayStr();
 };
 
+window.toggleAutoLock = () => {
+  state.autoLockEnabled = !state.autoLockEnabled;
+  localStorage.setItem('mhogar_auto_lock', state.autoLockEnabled ? 'true' : 'false');
+  saveState();
+  toast(state.autoLockEnabled ? 'Bloqueo automático al ingresar activado' : 'Bloqueo automático desactivado', '🛡️');
+  render();
+};
+
 window.closeModal = (id) => {
+  if (id === 'pinModal' && state.pinLocked) {
+    toast('Debes ingresar tu huella o PIN para desbloquear la sesión', '🔒');
+    return;
+  }
   const el = $(`#${id}`);
   if (el) el.classList.add('hidden');
 };
