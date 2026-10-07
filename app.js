@@ -593,14 +593,17 @@ function setupPinLock() {
 function setupAuth() {
   const userModal = $('#userModal');
   const userChip = $('#userChip');
-  
+
+  window.openUserModal = () => {
+    if (userModal) userModal.classList.remove('hidden');
+    if ($('#userNameInput')) $('#userNameInput').value = state.user.name || 'José Hugo';
+    if ($('#userEmailInput')) $('#userEmailInput').value = state.user.email || 'tualiadoenusaforms@gmail.com';
+    if ($('#userPinInput')) $('#userPinInput').value = state.pinCode || '1234';
+    setTimeout(() => $('#userPinInput')?.focus(), 150);
+  };
+
   if (userChip) {
-    userChip.onclick = () => {
-      if (userModal) userModal.classList.remove('hidden');
-      $('#userNameInput').value = state.user.name;
-      $('#userEmailInput').value = state.user.email;
-      $('#userPinInput').value = state.pinCode;
-    };
+    userChip.onclick = () => window.openUserModal();
   }
 
   const userForm = $('#userForm');
@@ -3007,16 +3010,19 @@ function renderSeguridad(container) {
               <strong style="font-size:13px">Paso 1: Identidad del Usuario</strong>
               <small style="color:var(--text-muted);display:block">${state.user.name} (${state.user.email})</small>
             </div>
-            <span style="color:var(--success);font-weight:800;font-size:12px">✓ Verificado</span>
+            <button class="btn btn-sm btn-soft" onclick="openUserModal()">✏️ Editar Perfil</button>
           </div>
 
           <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-secondary);border-radius:10px">
             <span style="font-size:20px">🔒</span>
             <div style="flex:1">
               <strong style="font-size:13px">Paso 2: PIN de Seguridad</strong>
-              <small style="color:var(--text-muted);display:block">PIN de 4 dígitos para proteger finanzas</small>
+              <small style="color:var(--text-muted);display:block">PIN actual de 4 dígitos: <b>${state.pinCode}</b></small>
             </div>
-            <button class="btn btn-sm btn-soft" onclick="showPinModal()">Cambiar / Probar</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-primary" onclick="openUserModal()">⚙️ Cambiar mi PIN</button>
+              <button class="btn btn-sm btn-soft" onclick="showPinModal()">🔑 Probar Teclado</button>
+            </div>
           </div>
         </div>
         <button class="btn btn-danger" style="width:100%" onclick="state.pinLocked=true;render();showPinModal()">🔒 Bloquear Pantalla con PIN Ahora</button>
