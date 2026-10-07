@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Gestión Personal">
+  <meta name="apple-mobile-web-app-title" content="Mi Hogar al Día">
   
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon-192.svg">
 
-  <title>Gestión Personal</title>
-  <meta name="description" content="Gestión Personal: control de ingresos y gastos diarios, agenda virtual con recordatorios y métricas de disciplina.">
-  <meta property="og:title" content="Gestión Personal">
-  <meta property="og:description" content="Gestión Personal: control de ingresos y gastos diarios, agenda virtual con recordatorios y métricas de disciplina.">
+  <title>Mi Hogar al Día</title>
+  <meta name="description" content="Agenda y calendario móvil familiar para organizar tareas, gastos, recordatorios y momentos compartidos.">
+  <meta property="og:title" content="Mi Hogar al Día">
+  <meta property="og:description" content="Agenda y calendario móvil familiar para organizar tareas, gastos, recordatorios y momentos compartidos.">
   
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -154,7 +154,7 @@
       </div>
 
       <div class="form-group">
-        <label>Concepto Confirmado (Editable)</label>
+        <label id="txTitleLabel">Concepto Confirmado (Editable)</label>
         <input type="text" id="txTitle" required placeholder="Ej: InDrive, Combustible, Menú, Luz..." maxlength="80">
       </div>
 
@@ -171,7 +171,7 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
-          <label>Método de Pago</label>
+          <label id="txMethodLabel">Método de Pago</label>
           <select id="txMethod">
             <option>Efectivo</option>
             <option>Yape / Plin</option>
@@ -187,7 +187,7 @@
 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
         <button type="button" class="btn btn-soft" onclick="closeModal('txModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar Registro</button>
+        <button type="submit" class="btn btn-primary" id="txSubmitBtn">Guardar Registro</button>
       </div>
     </form>
   </div>
@@ -782,6 +782,6 @@
   }
 </script>
 
-<script src="app.js"></script>
+<script src="app.js?v=6.3.2"></script>
 </body>
 </html>

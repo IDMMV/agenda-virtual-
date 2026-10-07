@@ -1,4 +1,4 @@
-const CACHE_NAME = "mi-hogar-disciplina-v6.0.0";
+const CACHE_NAME = "mi-hogar-disciplina-v6.3.2";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -40,7 +40,156 @@ let state = {
   googleToken: null,
   appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
   notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted',
-  biometricsEnabled: localStorage.getItem('mhogar_biometrics_enabled') === 'true'
+  biometricsEnabled: localStorage.getItem('mhogar_biometrics_enabled') === 'true',
+  customCategories: { expense: {}, income: {} }
+};
+
+// -------------------------------------------------------------
+// CATEGORÍAS Y SUBCATEGORÍAS PRINCIPALES (GESTIÓN PERSONAL)
+// -------------------------------------------------------------
+const DEFAULT_EXPENSE_CATEGORIES = {
+  'Alimentación (Alimentos y Mercado)': [
+    'Menú / Almuerzo diario',
+    'Supermercado / Mercado',
+    'Desayuno / Panadería',
+    'Cena / Comida rápida',
+    'Snacks / Bebidas / Café',
+    'Frutas / Verduras / Carnes',
+    'Otro en Alimentación'
+  ],
+  'Transporte y Combustible': [
+    'InDrive / Taxi aplicativo',
+    'Combustible (Gasolina / GNV / GLP)',
+    'Pasajes / Metropolitano / Micro / Metro',
+    'Mantenimiento / Lavado vehicular',
+    'Estacionamiento / Peajes',
+    'SOAT / Revisión Técnica',
+    'Otro en Transporte'
+  ],
+  'Servicios Básicos (Luz, Agua, Gas)': [
+    'Luz / Electricidad (Enel / Luz del Sur)',
+    'Agua potable (Sedapal / Servicio)',
+    'Gas natural (Cálidda / Balón de gas)',
+    'Arbitrios municipales',
+    'Mantenimiento del edificio',
+    'Otro en Servicios Básicos'
+  ],
+  'Telecomunicaciones (Celular, Internet)': [
+    'Plan Celular (Llamadas / Datos)',
+    'Internet Hogar / Fibra Óptica',
+    'Recargas de Celular',
+    'Cable / Televisión',
+    'Otro en Telecomunicaciones'
+  ],
+  'Vivienda / Alquiler': [
+    'Alquiler / Arriendo de Vivienda',
+    'Artículos de Limpieza y Aseo',
+    'Reparaciones / Mantenimiento del Hogar',
+    'Muebles / Utensilios para la Casa',
+    'Otro en Vivienda'
+  ],
+  'Salud y Medicinas': [
+    'Farmacia / Medicamentos',
+    'Consulta Médica / Clínica / Dental',
+    'Seguro de Salud (EPS / SIS / Privado)',
+    'Exámenes médicos / Laboratorio',
+    'Óptica / Lentes',
+    'Otro en Salud'
+  ],
+  'Educación': [
+    'Pensión Colegio / Nido',
+    'Universidad / Instituto',
+    'Cursos / Capacitaciones / Talleres',
+    'Libros / Útiles escolares / Fotocopias',
+    'Otro en Educación'
+  ],
+  'Pago de Deuda / Cuotas': [
+    'Cuota Tarjeta de Crédito',
+    'Cuota Préstamo Bancario',
+    'Pago Préstamo Personal / Familiar',
+    'Cuota Crédito Vehicular',
+    'Cuota Préstamo Hipotecario',
+    'Compra a Plazos / Tiendas',
+    'Otro en Deudas'
+  ],
+  'Ocio y Entretenimiento': [
+    'Restaurantes / Salidas a comer',
+    'Cine / Teatros / Conciertos',
+    'Suscripciones (Netflix, Spotify, etc.)',
+    'Paseos / Fin de semana',
+    'Juegos / Salidas familiares',
+    'Otro en Ocio'
+  ],
+  'Ropa y Cuidado Personal': [
+    'Ropa / Calzado',
+    'Corte de cabello / Peluquería / Barbería',
+    'Perfumería / Cosméticos',
+    'Gimnasio / Deportes',
+    'Otro en Cuidado Personal'
+  ],
+  'Ahorro e Inversión': [
+    'Aporte a Fondo de Emergencia',
+    'Aporte a Meta de Ahorro',
+    'Inversión / Capital para negocio',
+    'Otro en Ahorro'
+  ],
+  'Otros Gastos / Imprevistos': [
+    'Gasto Imprevisto / Emergencia',
+    'Comisiones bancarias / Mantenimiento',
+    'Trámites / Documentos / Notaría',
+    'Regalos / Celebraciones',
+    'Ayuda Familiar',
+    'Otro concepto personalizado'
+  ]
+};
+
+const DEFAULT_INCOME_CATEGORIES = {
+  'Sueldo / Ingresos': [
+    'Sueldo Quincena',
+    'Sueldo Fin de Mes',
+    'Sueldo Completo Mensual',
+    'Horas Extras',
+    'Gratificación / Aguinaldo',
+    'Bono de Productividad / Comisión',
+    'Liquidación / CTS',
+    'Otro en Sueldo'
+  ],
+  'Negocio y Ventas': [
+    'Venta diaria de mercadería',
+    'Cobro a cliente por productos',
+    'Ganancia de negocio / comercio',
+    'Comisiones por ventas',
+    'Cobro por servicios comerciales',
+    'Otro en Negocio'
+  ],
+  'Trabajos Extra / Freelance': [
+    'InDrive / Taxi aplicativo',
+    'Delivery / Reparto',
+    'Servicio profesional / Honorarios',
+    'Asesoría / Consultoría',
+    'Mantenimiento / Trabajo técnico realizado',
+    'Otro trabajo independiente'
+  ],
+  'Cobro de Préstamos / Devoluciones': [
+    'Cobro de préstamo a familiar / amigo',
+    'Devolución de dinero prestado',
+    'Reembolso / Devolución de compra',
+    'Otro en Cobros'
+  ],
+  'Inversiones y Rentas': [
+    'Cobro de alquiler / Renta inmobiliaria',
+    'Intereses bancarios / Depósito a plazo',
+    'Rendimiento de fondos mutuos / acciones',
+    'Dividendos / Retorno de capital',
+    'Otro en Inversiones'
+  ],
+  'Otros Ingresos': [
+    'Regalo en efectivo / Apoyo familiar',
+    'Venta de artículo usado / cosas de casa',
+    'Sorteo / Premio',
+    'Ingreso extraordinario / Imprevisto favorable',
+    'Otro concepto personalizado'
+  ]
 };
 
 // Cargar estado persistente de localStorage y filtrar datos de muestra
@@ -67,6 +216,7 @@ try {
     if (parsed.theme) state.theme = parsed.theme;
     if (parsed.appsScriptUrl) state.appsScriptUrl = parsed.appsScriptUrl;
     if (parsed.pomodoroSessions) state.pomodoro.sessionsCompleted = parsed.pomodoroSessions;
+    if (parsed.customCategories) state.customCategories = parsed.customCategories;
   }
 } catch (e) {
   console.warn('Error al cargar datos previos:', e);
@@ -104,7 +254,8 @@ function saveState() {
     theme: state.theme,
     appsScriptUrl: state.appsScriptUrl,
     pomodoroSessions: state.pomodoro.sessionsCompleted,
-    biometricsEnabled: state.biometricsEnabled
+    biometricsEnabled: state.biometricsEnabled,
+    customCategories: state.customCategories
   }));
 }
 
@@ -3209,14 +3360,205 @@ window.importJsonBackup = (e) => {
 // -------------------------------------------------------------
 // OPERACIONES DE TRANSACCIONES Y AGENDA
 // -------------------------------------------------------------
+function getCategoriesForType(type) {
+  const custom = state.customCategories || {};
+  const base = type === 'income' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES;
+  const userCat = (custom[type] || {});
+  
+  const merged = {};
+  for (const k of Object.keys(base)) {
+    merged[k] = [...base[k]];
+  }
+  for (const k of Object.keys(userCat)) {
+    if (!merged[k]) {
+      merged[k] = [...userCat[k]];
+    } else {
+      userCat[k].forEach(item => {
+        if (!merged[k].includes(item)) merged[k].push(item);
+      });
+    }
+  }
+  return merged;
+}
+
+window.populateTxCategories = (type, selectedCategory = null, selectedConcept = null) => {
+  const catSelect = $('#txCategory');
+  if (!catSelect) return;
+  const cats = getCategoriesForType(type);
+  const catNames = Object.keys(cats);
+  
+  catSelect.innerHTML = catNames.map(c => `<option value="${escHTML(c)}">${escHTML(c)}</option>`).join('') +
+    `<option value="__add_category__">➕ Añadir nueva categoría...</option>`;
+  
+  if (selectedCategory && catNames.includes(selectedCategory)) {
+    catSelect.value = selectedCategory;
+  } else if (catNames.length > 0) {
+    catSelect.value = catNames[0];
+  }
+  
+  window.onTxCategoryChange(selectedConcept);
+};
+
+window.onTxCategoryChange = (selectedConcept = null) => {
+  const catSelect = $('#txCategory');
+  const conceptSelect = $('#txConceptSelect');
+  if (!catSelect || !conceptSelect) return;
+  
+  const type = $('#txType')?.value || 'expense';
+  
+  if (catSelect.value === '__add_category__') {
+    const newCat = prompt('Escribe el nombre de la nueva categoría principal:');
+    if (newCat && newCat.trim()) {
+      const cleanCat = newCat.trim();
+      if (!state.customCategories) state.customCategories = { expense: {}, income: {} };
+      if (!state.customCategories[type]) state.customCategories[type] = {};
+      if (!state.customCategories[type][cleanCat]) state.customCategories[type][cleanCat] = ['General'];
+      saveState();
+      window.populateTxCategories(type, cleanCat, 'General');
+      toast('Nueva categoría agregada', '✅');
+      return;
+    } else {
+      const cats = getCategoriesForType(type);
+      catSelect.value = Object.keys(cats)[0] || '';
+    }
+  }
+  
+  const currentCat = catSelect.value;
+  const cats = getCategoriesForType(type);
+  const concepts = cats[currentCat] || ['General'];
+  
+  conceptSelect.innerHTML = concepts.map(c => `<option value="${escHTML(c)}">${escHTML(c)}</option>`).join('') +
+    `<option value="__add_concept__">➕ Añadir nuevo concepto...</option>` +
+    `<option value="__custom__">✏️ Escribir concepto personalizado...</option>`;
+    
+  if (selectedConcept && concepts.includes(selectedConcept)) {
+    conceptSelect.value = selectedConcept;
+  } else if (concepts.length > 0) {
+    conceptSelect.value = concepts[0];
+  }
+  
+  window.onTxConceptSelectChange();
+};
+
+window.onTxConceptSelectChange = () => {
+  const catSelect = $('#txCategory');
+  const conceptSelect = $('#txConceptSelect');
+  const titleInput = $('#txTitle');
+  if (!conceptSelect || !titleInput) return;
+  
+  const type = $('#txType')?.value || 'expense';
+  const currentCat = catSelect ? catSelect.value : '';
+  
+  if (conceptSelect.value === '__add_concept__') {
+    const newConcept = prompt(`Escribe el nuevo concepto / subcategoría para "${currentCat}":`);
+    if (newConcept && newConcept.trim()) {
+      const cleanConcept = newConcept.trim();
+      if (!state.customCategories) state.customCategories = { expense: {}, income: {} };
+      if (!state.customCategories[type]) state.customCategories[type] = {};
+      if (!state.customCategories[type][currentCat]) state.customCategories[type][currentCat] = [];
+      if (!state.customCategories[type][currentCat].includes(cleanConcept)) {
+        state.customCategories[type][currentCat].push(cleanConcept);
+      }
+      saveState();
+      window.onTxCategoryChange(cleanConcept);
+      titleInput.value = cleanConcept;
+      toast('Nuevo concepto agregado', '✅');
+      return;
+    } else {
+      const cats = getCategoriesForType(type);
+      const list = cats[currentCat] || ['General'];
+      conceptSelect.value = list[0] || '';
+      titleInput.value = conceptSelect.value;
+      return;
+    }
+  }
+  
+  if (conceptSelect.value === '__custom__') {
+    titleInput.value = '';
+    titleInput.focus();
+    return;
+  }
+  
+  titleInput.value = conceptSelect.value;
+};
+
 window.openTxModal = (type) => {
   const modal = $('#txModal');
   if (!modal) return;
   modal.classList.remove('hidden');
   $('#txType').value = type;
-  $('#txModalTitle').textContent = type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto';
+  
+  const isIncome = type === 'income';
+  $('#txModalTitle').textContent = isIncome ? 'Registrar Ingreso' : 'Registrar Gasto';
   $('#txDate').value = todayStr();
+  if ($('#txAmount')) $('#txAmount').value = '';
+  if ($('#txNotes')) $('#txNotes').value = '';
+
+  // Actualizar etiqueta del método: para Ingreso no es "pago", es "cobro / recepción"
+  const methodLabel = $('#txMethodLabel');
+  if (methodLabel) {
+    methodLabel.textContent = isIncome ? 'Medio de Cobro / Dónde ingresó' : 'Método de Pago / Salida';
+  }
+
+  // Actualizar etiqueta de concepto
+  const titleLabel = $('#txTitleLabel');
+  if (titleLabel) {
+    titleLabel.textContent = isIncome ? 'Concepto del Ingreso (Editable)' : 'Concepto Confirmado (Editable)';
+  }
+
+  // Actualizar placeholder del concepto
+  const titleInput = $('#txTitle');
+  if (titleInput) {
+    titleInput.placeholder = isIncome 
+      ? 'Ej: Sueldo, Venta del día, InDrive, Préstamo cobrado...' 
+      : 'Ej: InDrive, Combustible, Menú, Luz...';
+  }
+
+  // Actualizar botón de guardar
+  const submitBtn = $('#txSubmitBtn');
+  if (submitBtn) {
+    submitBtn.textContent = isIncome ? 'Guardar Ingreso' : 'Guardar Gasto';
+    if (isIncome) {
+      submitBtn.classList.remove('btn-primary');
+      submitBtn.classList.add('btn-success');
+    } else {
+      submitBtn.classList.remove('btn-success');
+      submitBtn.classList.add('btn-primary');
+    }
+  }
+
+  // Opciones de método adaptadas a Ingreso (cómo se cobró) vs Gasto (cómo se pagó)
+  const methodSelect = $('#txMethod');
+  if (methodSelect) {
+    if (isIncome) {
+      methodSelect.innerHTML = `
+        <option>Transferencia Bancaria</option>
+        <option>Yape / Plin</option>
+        <option>Efectivo</option>
+        <option>Depósito en Cuenta</option>
+      `;
+    } else {
+      methodSelect.innerHTML = `
+        <option>Efectivo</option>
+        <option>Yape / Plin</option>
+        <option>Tarjeta Débito/Crédito</option>
+        <option>Transferencia Bancaria</option>
+      `;
+    }
+  }
+
+  // Poblar categorías principales y subcategorías correspondientes
+  window.populateTxCategories(type);
 };
+
+// Asegurar precarga inicial de categorías al cargar la app
+if (typeof document !== 'undefined') {
+  setTimeout(() => {
+    if ($('#txCategory') && $('#txCategory').children.length === 0) {
+      window.populateTxCategories('expense');
+    }
+  }, 100);
+}
 
 window.openAgendaModal = () => {
   const modal = $('#agendaModal');
