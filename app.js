@@ -512,15 +512,66 @@ function toast(msg, icon = 'ℹ️') {
   setTimeout(() => el.remove(), 3600);
 }
 
+// -------------------------------------------------------------
+// GESTIÓN DE HÁBITOS RECURRENTES Y TAREAS DIARIAS
+// -------------------------------------------------------------
+function isHabitActiveOnDate(item, dateStr) {
+  if (item.type !== 'habit') {
+    return item.date === dateStr;
+  }
+  const start = item.startDate || item.date || '2000-01-01';
+  if (dateStr < start) return false;
+  if (!item.isIndefinite && item.endDate && dateStr > item.endDate) return false;
+
+  if (Array.isArray(item.daysOfWeek) && item.daysOfWeek.length > 0 && item.daysOfWeek.length < 7) {
+    const parts = dateStr.split('-');
+    const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const dow = dt.getDay(); // 0: Dom, 1: Lun, 2: Mar, 3: Mié, 4: Jue, 5: Vie, 6: Sáb
+    if (!item.daysOfWeek.includes(dow)) return false;
+  }
+  return true;
+}
+
+function getAgendaItemsForDate(dateStr) {
+  const result = [];
+  (state.agenda || []).forEach(item => {
+    if (isHabitActiveOnDate(item, dateStr)) {
+      const isDone = item.type === 'habit'
+        ? (item.completedDates ? !!item.completedDates[dateStr] : false)
+        : !!item.done;
+      result.push({
+        ...item,
+        displayDate: dateStr,
+        isDoneToday: isDone
+      });
+    }
+  });
+  return result.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+}
+
+function formatHabitDays(item) {
+  if (!item.daysOfWeek || item.daysOfWeek.length >= 7) return 'Todos los días';
+  const names = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' };
+  const sorted = [...item.daysOfWeek].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
+  if (sorted.length === 5 && !sorted.includes(6) && !sorted.includes(0)) return 'Lun a Vie';
+  if (sorted.length === 2 && sorted.includes(6) && sorted.includes(0)) return 'Fines de semana';
+  return sorted.map(d => names[d] || d).join(', ');
+}
+
+function formatTimeRange(item) {
+  if (item.endTime) return `${item.time} a ${item.endTime}`;
+  return item.time || '09:00';
+}
+
 // Cálculo del Índice Integral de Disciplina (0 a 100%)
 // Índice de disciplina de una fecha (0 a 100). Los componentes sin datos no cuentan (se reparten los pesos).
 function disciplineForDate(dateStr) {
   const today = todayStr();
-  const tasks = state.agenda.filter(a => a.date === dateStr);
+  const tasks = getAgendaItemsForDate(dateStr);
   const hasTx = state.transactions.some(t => t.date === dateStr);
   if (!tasks.length && !hasTx && dateStr !== today) return null;
   const parts = [];
-  if (tasks.length) parts.push([40, tasks.filter(t => t.done).length / tasks.length]);
+  if (tasks.length) parts.push([40, tasks.filter(t => t.isDoneToday).length / tasks.length]);
   parts.push([30, hasTx ? 1 : 0]);
   const debts = state.debts || [];
   if (debts.length) {
@@ -581,8 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGoogleIntegrations();
 
   // Bloqueo de seguridad al iniciar la app
-  const isUnlockedSession = sessionStorage.getItem('mhogar_unlocked_session') === 'true';
-  if (state.autoLockEnabled && !isUnlockedSession) {
+  if (state.autoLockEnabled) {
     state.pinLocked = true;
   }
 
@@ -599,10 +649,7 @@ document.addEventListener('visibilitychange', () => {
     sessionStorage.setItem('mhogar_last_hidden', Date.now().toString());
   } else if (document.visibilityState === 'visible') {
     if (state.autoLockEnabled) {
-      const lastHidden = parseInt(sessionStorage.getItem('mhogar_last_hidden') || '0', 10);
-      if (!lastHidden || (Date.now() - lastHidden > 3000)) {
-        window.lockSession(true);
-      }
+      window.lockSession(true);
     }
   }
 });
@@ -705,8 +752,8 @@ function setupPinLock() {
     }
     if (modal) modal.classList.remove('hidden');
 
-    // Si la huella está activada y se solicitó autoBio, disparar huella automáticamente
-    if (autoBio && state.biometricsEnabled) {
+    // Si la huella está disponible y se solicitó autoBio, disparar huella automáticamente
+    if (autoBio && (state.biometricsEnabled || window.PublicKeyCredential)) {
       setTimeout(() => {
         window.authenticateWithBiometrics(true);
       }, 350);
@@ -1008,6 +1055,7 @@ function setupGoogleIntegrations() {
 // RENDERIZADO PRINCIPAL
 // -------------------------------------------------------------
 function render() {
+  const prevScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
   document.documentElement.setAttribute('data-theme', state.theme);
 
   const pageTitle = $('#pageTitle');
@@ -1086,6 +1134,11 @@ function render() {
       renderSeguridad(container);
       break;
   }
+
+  // Mantener fijo el scroll en caso de re-renderizado
+  if (prevScrollY > 0 && Math.abs(window.scrollY - prevScrollY) > 4) {
+    window.scrollTo({ top: prevScrollY, behavior: 'instant' });
+  }
 }
 
 // -------------------------------------------------------------
@@ -1103,8 +1156,8 @@ function renderDashboard(container) {
   const balance = allTimeBalance();
   const score = calculateDisciplineScore();
   const streak = getDisciplineStreak();
-  const todayTasks = state.agenda.filter(a => a.date === today);
-  const doneTasks = todayTasks.filter(a => a.done).length;
+  const todayTasks = getAgendaItemsForDate(today);
+  const doneTasks = todayTasks.filter(a => a.isDoneToday).length;
   const todayExp = state.transactions.filter(t => t.type === 'expense' && t.date === today).reduce((s, x) => s + x.amount, 0);
   const debt = computeDebt(cm);
   const budget = state.user.monthlyBudget || 1500;
@@ -1233,18 +1286,22 @@ function renderDashboard(container) {
         </div>
         <div class="agenda-list">
           ${todayTasks.length ? todayTasks.map(item => `
-            <div class="agenda-card ${item.done ? 'done' : ''}">
-              <div class="agenda-time">${item.time}</div>
+            <div class="agenda-card ${item.isDoneToday ? 'done' : ''}">
+              <div class="agenda-time">
+                ${item.time}
+                ${item.endTime ? `<small style="display:block;font-size:9.5px;opacity:0.8">a ${item.endTime}</small>` : ''}
+              </div>
               <div class="agenda-body">
-                <h4>${item.title}</h4>
+                <h4>${escHTML(item.title)}</h4>
                 <div class="agenda-meta">
                   <span class="priority-tag p-${item.priority}">${item.priority}</span>
-                  <span>${item.type === 'habit' ? '🌱 Hábito diario' : '📌 Tarea'}</span>
+                  <span>${item.type === 'habit' ? '🌱 ' + formatHabitDays(item) : '📌 Tarea'}</span>
+                  ${item.type === 'habit' && (item.isIndefinite || !item.endDate) ? '<span style="color:var(--text-dim)">· Permanente</span>' : ''}
                 </div>
               </div>
-              <input type="checkbox" style="width:22px;height:22px;cursor:pointer;flex-shrink:0" ${item.done ? 'checked' : ''} onchange="toggleTaskDone('${item.id}')">
+              <input type="checkbox" style="width:22px;height:22px;cursor:pointer;flex-shrink:0" ${item.isDoneToday ? 'checked' : ''} onchange="toggleTaskDone('${item.id}', '${today}')">
             </div>
-          `).join('') : '<p style="color:var(--text-muted);text-align:center;padding:20px">No hay actividades para hoy. ¡Crea una para ganar disciplina!</p>'}
+          `).join('') : '<p style="color:var(--text-muted);text-align:center;padding:20px">No hay actividades para hoy. ¡Crea un hábito para ganar disciplina!</p>'}
         </div>
       </div>
 
@@ -2054,42 +2111,130 @@ function renderGastosFijos(container) {
 // -------------------------------------------------------------
 function renderAgenda(container) {
   const today = todayStr();
+  if (!state.selectedAgendaDate) state.selectedAgendaDate = today;
+  const viewDate = state.selectedAgendaDate;
+  const isViewingToday = viewDate === today;
+
+  const dateTasks = getAgendaItemsForDate(viewDate);
+  const doneCount = dateTasks.filter(a => a.isDoneToday).length;
+  const allHabits = (state.agenda || []).filter(a => a.type === 'habit');
+
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <div>
         <h3 style="font-size:20px;font-weight:800">Agenda Virtual & Hábitos Diarios</h3>
-        <p style="color:var(--text-muted);font-size:13px">Bloques de tiempo, tareas prioritarias y hábitos para desarrollar disciplina constante.</p>
+        <p style="color:var(--text-muted);font-size:13px">Bloques de tiempo, tareas prioritarias y hábitos programados en rango de tiempo y días específicos.</p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="openAgendaModal()">＋ Nueva Actividad</button>
-        <button class="btn btn-soft" onclick="openCalendarSyncModal()">📅 Enviar a Google Calendar</button>
+        <button class="btn btn-primary" onclick="openAgendaModal(null, 'habit')">＋ Nuevo Hábito Diario</button>
+        <button class="btn btn-soft" onclick="openAgendaModal(null, 'task')">📌 Nueva Tarea</button>
+        <button class="btn btn-soft" onclick="openCalendarSyncModal()">📅 Google Calendar</button>
       </div>
     </div>
 
-    <div class="card-panel">
+    <!-- Barra de navegación por fechas -->
+    <div class="card-panel" style="margin-bottom:20px;padding:14px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-sm btn-soft" onclick="state.selectedAgendaDate = addDaysStr('${viewDate}', -1); render();" title="Día anterior">◀ Anterior</button>
+          <strong style="font-size:15px;color:var(--text-main)">📅 ${viewDate} ${isViewingToday ? '<span class="status-badge status-paid" style="margin-left:6px">Hoy</span>' : ''}</strong>
+          <button class="btn btn-sm btn-soft" onclick="state.selectedAgendaDate = addDaysStr('${viewDate}', 1); render();" title="Día siguiente">Siguiente ▶</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${!isViewingToday ? `<button class="btn btn-sm btn-primary" onclick="state.selectedAgendaDate = '${today}'; render();">Volver a Hoy</button>` : ''}
+          <input type="date" value="${viewDate}" onchange="state.selectedAgendaDate = this.value; render();" style="padding:6px 10px;font-size:13px">
+        </div>
+      </div>
+    </div>
+
+    <div class="card-panel" style="margin-bottom:20px">
       <div class="panel-head">
-        <h3>Actividades y Hábitos (${today})</h3>
-        <span class="nav-badge">${state.agenda.filter(a => a.done).length} de ${state.agenda.length} completados</span>
+        <div>
+          <h3>Actividades y Hábitos programados para ${viewDate}</h3>
+          <small style="color:var(--text-muted)">Cumple tus hábitos diarios para forjar disciplina constante.</small>
+        </div>
+        <span class="nav-badge">${doneCount} de ${dateTasks.length} completados</span>
       </div>
       <div class="agenda-list">
-        ${state.agenda.map(item => `
-          <div class="agenda-card ${item.done ? 'done' : ''}">
-            <div class="agenda-time">${item.time}</div>
+        ${dateTasks.length ? dateTasks.map(item => `
+          <div class="agenda-card ${item.isDoneToday ? 'done' : ''}">
+            <div class="agenda-time">
+              ${item.time}
+              ${item.endTime ? `<br><small style="font-size:9.5px;color:var(--text-muted)">a ${item.endTime}</small>` : ''}
+            </div>
             <div class="agenda-body">
-              <h4>${item.title}</h4>
+              <h4>${escHTML(item.title)}</h4>
               <div class="agenda-meta">
                 <span class="priority-tag p-${item.priority}">Prioridad ${item.priority}</span>
-                <span>${item.type === 'habit' ? '🌱 Hábito diario' : '📌 Tarea'}</span>
-                <span>${item.date}</span>
+                <span>${item.type === 'habit' ? '🌱 Hábito (' + formatHabitDays(item) + ')' : '📌 Tarea puntual'}</span>
+                ${item.type === 'habit' ? `<span style="color:var(--text-dim)">Vigencia: ${item.startDate || item.date}${item.isIndefinite || !item.endDate ? ' (Permanente)' : ' hasta ' + item.endDate}</span>` : `<span>Fecha: ${item.date}</span>`}
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <input type="checkbox" style="width:22px;height:22px;cursor:pointer" ${item.done ? 'checked' : ''} onchange="toggleTaskDone('${item.id}')">
+              <input type="checkbox" style="width:22px;height:22px;cursor:pointer" ${item.isDoneToday ? 'checked' : ''} onchange="toggleTaskDone('${item.id}', '${viewDate}')" title="Marcar como cumplido">
+              <button class="btn btn-sm btn-soft" onclick="openAgendaModal('${item.id}')" title="Editar hábito o tarea">✏️</button>
               <button class="btn btn-sm btn-soft" onclick="openGoogleCalendarForTask('${item.id}')" title="Añadir a Google Calendar">📅</button>
               <button class="btn btn-sm btn-soft" onclick="deleteAgendaItem('${item.id}')" title="Eliminar">🗑️</button>
             </div>
           </div>
-        `).join('')}
+        `).join('') : `
+          <div style="text-align:center;padding:30px 20px;color:var(--text-muted)">
+            <div style="font-size:36px;margin-bottom:8px">🌱</div>
+            <p style="font-weight:700">No hay hábitos ni tareas programados para esta fecha.</p>
+            <p style="font-size:12.5px;margin-bottom:14px">Crea un hábito con repetición diaria o días específicos para empezar tu rutina.</p>
+            <button class="btn btn-sm btn-primary" onclick="openAgendaModal(null, 'habit')">＋ Programar Nuevo Hábito</button>
+          </div>
+        `}
+      </div>
+    </div>
+
+    <!-- Sección de Hábitos Recurrentes Configurados -->
+    <div class="card-panel">
+      <div class="panel-head">
+        <div>
+          <h3>🌱 Mis Hábitos Diarios Configurados</h3>
+          <small style="color:var(--text-muted)">Consulta los hábitos que tienes programados, sus días de repetición y rangos de tiempo.</small>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="openAgendaModal(null, 'habit')">＋ Crear Hábito</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px;margin-top:10px">
+        ${allHabits.length ? allHabits.map(h => {
+          const completedTotal = Object.keys(h.completedDates || {}).filter(k => h.completedDates[k]).length;
+          const isDoneToday = (h.completedDates || {})[today];
+          return `
+            <div class="quad-card" style="padding:16px;border-left:4px solid var(--success)">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                <div>
+                  <h4 style="font-size:15px;font-weight:800;margin-bottom:3px">${escHTML(h.title)}</h4>
+                  <span class="habit-badge">🌱 ${formatHabitDays(h)}</span>
+                </div>
+                <span class="priority-tag p-${h.priority}">${h.priority}</span>
+              </div>
+
+              <div style="font-size:12.5px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px">
+                <div>⏰ <b>Horario:</b> ${formatTimeRange(h)}</div>
+                <div>📅 <b>Vigencia:</b> ${h.startDate || h.date}${h.isIndefinite || !h.endDate ? ' (Permanente)' : ' hasta ' + h.endDate}</div>
+                <div>🔥 <b>Constancia:</b> ${completedTotal} ${completedTotal === 1 ? 'día completado' : 'días completados'}</div>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:10px;border-top:1px solid var(--border)">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                  <input type="checkbox" style="width:18px;height:18px;cursor:pointer" ${isDoneToday ? 'checked' : ''} onchange="toggleTaskDone('${h.id}', '${today}')">
+                  <span style="font-weight:700;color:${isDoneToday ? 'var(--success)' : 'var(--text-muted)'}">${isDoneToday ? 'Cumplido hoy' : 'Pendiente hoy'}</span>
+                </label>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-sm btn-soft" onclick="openAgendaModal('${h.id}')" title="Editar hábito">✏️ Editar</button>
+                  <button class="btn btn-sm btn-soft" onclick="deleteAgendaItem('${h.id}')" title="Eliminar">🗑️</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('') : `
+          <div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted)">
+            <p>Aún no has configurado hábitos recurrentes. ¡Agrega lectura, ejercicio o meditación para forjar tu rutina diaria!</p>
+          </div>
+        `}
       </div>
     </div>
   `;
@@ -2648,22 +2793,39 @@ window.openTodayInGoogleCalendar = () => {
 window.openGoogleCalendarForTask = (taskId) => {
   const task = (state.agenda || []).find(a => a.id === taskId);
   if (!task) return;
-  const dateFormatted = task.date.replace(/-/g, '');
+  const dateFormatted = (task.startDate || task.date || todayStr()).replace(/-/g, '');
   const timeFormatted = (task.time || '09:00').replace(/:/g, '') + '00';
   const startIso = `${dateFormatted}T${timeFormatted}`;
 
-  const dateObj = new Date(`${task.date}T${task.time || '09:00'}:00`);
-  const endDateObj = new Date(dateObj.getTime() + 45 * 60000);
-  const endDateFormatted = endDateObj.toISOString().slice(0, 10).replace(/-/g, '');
-  const endTimeFormatted = endDateObj.toTimeString().slice(0, 5).replace(/:/g, '') + '00';
-  const endIso = `${endDateFormatted}T${endTimeFormatted}`;
+  let endIso;
+  if (task.endTime) {
+    const endFormatted = task.endTime.replace(/:/g, '') + '00';
+    endIso = `${dateFormatted}T${endFormatted}`;
+  } else {
+    const dateObj = new Date(`${task.startDate || task.date}T${task.time || '09:00'}:00`);
+    const endDateObj = new Date(dateObj.getTime() + 45 * 60000);
+    const endDateFormatted = endDateObj.toISOString().slice(0, 10).replace(/-/g, '');
+    const endTimeFormatted = endDateObj.toTimeString().slice(0, 5).replace(/:/g, '') + '00';
+    endIso = `${endDateFormatted}T${endTimeFormatted}`;
+  }
 
   const title = encodeURIComponent(`[Gestión Personal] ${task.title}`);
-  const details = encodeURIComponent(`Prioridad: ${task.priority}\nTipo: ${task.type}\nCuenta: tualiadoenusaforms@gmail.com\nOrganizado con Gestión Personal.`);
-  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startIso}/${endIso}&details=${details}&add=tualiadoenusaforms@gmail.com`;
+  let recurrence = '';
+  if (task.type === 'habit') {
+    if (!task.daysOfWeek || task.daysOfWeek.length === 7) {
+      recurrence = '&recur=RRULE:FREQ=DAILY';
+    } else {
+      const dayMap = { 0: 'SU', 1: 'MO', 2: 'TU', 3: 'WE', 4: 'TH', 5: 'FR', 6: 'SA' };
+      const byDays = task.daysOfWeek.map(d => dayMap[d]).join(',');
+      recurrence = `&recur=RRULE:FREQ=WEEKLY;BYDAY=${byDays}`;
+    }
+  }
+
+  const details = encodeURIComponent(`Prioridad: ${task.priority}\nTipo: ${task.type === 'habit' ? 'Hábito diario (' + formatHabitDays(task) + ')' : 'Tarea puntual'}\nOrganizado con Gestión Personal.`);
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startIso}/${endIso}&details=${details}${recurrence}&add=tualiadoenusaforms@gmail.com`;
 
   window.open(url, '_blank');
-  toast('Abriendo Google Calendar con tu actividad...', '📅');
+  toast('Abriendo Google Calendar con tu hábito/actividad...', '📅');
 };
 
 window.downloadAgendaIcsFile = () => {
@@ -2680,13 +2842,23 @@ window.downloadAgendaIcsFile = () => {
     'METHOD:PUBLISH'
   ];
   tasks.forEach(task => {
-    const d = (task.date || todayStr()).replace(/-/g, '');
+    const d = (task.startDate || task.date || todayStr()).replace(/-/g, '');
     const t = (task.time || '09:00').replace(/:/g, '') + '00';
+    const endT = task.endTime ? task.endTime.replace(/:/g, '') + '00' : t;
     ics.push('BEGIN:VEVENT');
     ics.push(`UID:task-${task.id}@gestionpersonal.app`);
     ics.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`);
     ics.push(`DTSTART:${d}T${t}`);
-    ics.push(`DTEND:${d}T${t}`);
+    ics.push(`DTEND:${d}T${endT}`);
+    if (task.type === 'habit') {
+      if (!task.daysOfWeek || task.daysOfWeek.length === 7) {
+        ics.push('RRULE:FREQ=DAILY');
+      } else {
+        const dayMap = { 0: 'SU', 1: 'MO', 2: 'TU', 3: 'WE', 4: 'TH', 5: 'FR', 6: 'SA' };
+        const byDays = task.daysOfWeek.map(d => dayMap[d]).join(',');
+        ics.push(`RRULE:FREQ=WEEKLY;BYDAY=${byDays}`);
+      }
+    }
     ics.push(`SUMMARY:[Disciplina] ${task.title}`);
     ics.push(`DESCRIPTION:Prioridad ${task.priority}. Tipo: ${task.type}`);
     ics.push('BEGIN:VALARM');
@@ -3628,11 +3800,116 @@ if (typeof document !== 'undefined') {
   }, 100);
 }
 
-window.openAgendaModal = () => {
+window.selectedHabitDays = [0, 1, 2, 3, 4, 5, 6];
+
+window.updateDayChipsUI = () => {
+  const container = $('#habitDaysSelector');
+  if (!container) return;
+  const chips = container.querySelectorAll('.day-chip');
+  window.selectedHabitDays = [];
+  chips.forEach(chip => {
+    const input = chip.querySelector('input');
+    if (input && input.checked) {
+      chip.classList.add('active');
+      window.selectedHabitDays.push(parseInt(input.value, 10));
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+};
+
+window.setHabitDaysPreset = (preset) => {
+  const container = $('#habitDaysSelector');
+  if (!container) return;
+  const chips = container.querySelectorAll('.day-chip');
+  chips.forEach(chip => {
+    const input = chip.querySelector('input');
+    const val = parseInt(input.value, 10);
+    if (preset === 'all') {
+      input.checked = true;
+    } else if (preset === 'weekdays') {
+      input.checked = (val >= 1 && val <= 5);
+    } else if (preset === 'weekend') {
+      input.checked = (val === 0 || val === 6);
+    }
+  });
+  window.updateDayChipsUI();
+};
+
+window.onAgTypeChange = () => {
+  const type = $('#agType').value;
+  const isHabit = type === 'habit';
+  const endGroup = $('#agEndTimeGroup');
+  const daysSec = $('#agHabitDaysSection');
+  const indefGroup = $('#agIndefiniteGroup');
+  const timeLabel = $('#agTimeLabel');
+  const dateLabel = $('#agDateLabel');
+  const submitBtn = $('#agSubmitBtn');
+  const modalTitle = $('#agendaModalTitle');
+
+  if (endGroup) endGroup.style.display = isHabit ? 'block' : 'none';
+  if (daysSec) daysSec.style.display = isHabit ? 'block' : 'none';
+  if (indefGroup) indefGroup.style.display = isHabit ? 'flex' : 'none';
+  if (timeLabel) timeLabel.textContent = isHabit ? 'Hora de Inicio' : 'Hora Programada';
+  if (dateLabel) dateLabel.textContent = isHabit ? 'Fecha de Inicio (Desde)' : 'Fecha de la Tarea';
+  if (submitBtn) submitBtn.textContent = isHabit ? 'Guardar Hábito' : 'Guardar Tarea';
+  if (modalTitle) modalTitle.textContent = isHabit ? 'Nuevo Hábito Diario / Recurrente' : 'Nueva Tarea Puntual';
+
+  window.onAgIndefiniteChange();
+};
+
+window.onAgIndefiniteChange = () => {
+  const type = $('#agType') ? $('#agType').value : 'habit';
+  const indef = $('#agIndefinite');
+  const endDateGroup = $('#agEndDateGroup');
+  if (!endDateGroup) return;
+  if (type !== 'habit') {
+    endDateGroup.style.display = 'none';
+  } else {
+    endDateGroup.style.display = (indef && indef.checked) ? 'none' : 'block';
+  }
+};
+
+window.openAgendaModal = (editId = null, defaultType = 'habit') => {
   const modal = $('#agendaModal');
   if (!modal) return;
   modal.classList.remove('hidden');
+
+  $('#agId').value = editId || '';
+  if (editId) {
+    const item = (state.agenda || []).find(a => a.id === editId);
+    if (item) {
+      $('#agTitle').value = item.title || '';
+      $('#agType').value = item.type || 'habit';
+      $('#agPriority').value = item.priority || 'mid';
+      $('#agTime').value = item.time || '07:00';
+      $('#agEndTime').value = item.endTime || '';
+      $('#agDate').value = item.startDate || item.date || todayStr();
+      $('#agEndDate').value = item.endDate || '';
+      $('#agIndefinite').checked = item.isIndefinite !== false;
+
+      const days = item.daysOfWeek || [0, 1, 2, 3, 4, 5, 6];
+      const chips = $('#habitDaysSelector') ? $('#habitDaysSelector').querySelectorAll('.day-chip') : [];
+      chips.forEach(chip => {
+        const inp = chip.querySelector('input');
+        if (inp) inp.checked = days.includes(parseInt(inp.value, 10));
+      });
+      window.updateDayChipsUI();
+      window.onAgTypeChange();
+      return;
+    }
+  }
+
+  $('#agTitle').value = '';
+  $('#agType').value = defaultType;
+  $('#agPriority').value = 'mid';
+  $('#agTime').value = '07:00';
+  $('#agEndTime').value = '07:30';
   $('#agDate').value = todayStr();
+  $('#agEndDate').value = '';
+  $('#agIndefinite').checked = true;
+  window.setHabitDaysPreset('all');
+  window.onAgTypeChange();
 };
 
 window.toggleAutoLock = () => {
@@ -3676,34 +3953,66 @@ window.saveTransaction = (e) => {
 
 window.saveAgendaItem = (e) => {
   e.preventDefault();
-  const item = {
-    id: 'ag-' + Date.now(),
-    title: $('#agTitle').value.trim(),
-    time: $('#agTime').value || '09:00',
-    priority: $('#agPriority').value,
-    type: $('#agType').value,
-    date: $('#agDate').value || todayStr(),
-    done: false
-  };
+  const editId = $('#agId').value;
+  const type = $('#agType').value;
+  const isHabit = type === 'habit';
+  const isIndefinite = isHabit ? $('#agIndefinite').checked : false;
 
-  state.agenda.push(item);
+  window.updateDayChipsUI();
+  let days = window.selectedHabitDays;
+  if (!days || days.length === 0) days = [0, 1, 2, 3, 4, 5, 6];
+
+  let item = editId ? (state.agenda || []).find(a => a.id === editId) : null;
+  const isNew = !item;
+
+  if (isNew) {
+    item = {
+      id: 'ag-' + Date.now(),
+      completedDates: {},
+      done: false
+    };
+  }
+
+  item.title = $('#agTitle').value.trim();
+  item.type = type;
+  item.priority = $('#agPriority').value;
+  item.time = $('#agTime').value || '07:00';
+  item.endTime = isHabit ? ($('#agEndTime').value || '') : '';
+  item.daysOfWeek = isHabit ? days : [0, 1, 2, 3, 4, 5, 6];
+  item.startDate = $('#agDate').value || todayStr();
+  item.endDate = (!isHabit || isIndefinite) ? null : ($('#agEndDate').value || null);
+  item.isIndefinite = isHabit ? isIndefinite : false;
+  item.date = item.startDate; // compatibilidad
+
+  if (isNew) {
+    state.agenda.unshift(item);
+  }
+
   saveState();
   closeModal('agendaModal');
   playChime('success');
-  toast('Actividad agregada a tu agenda de disciplina', '📅');
+  toast(isHabit ? '🌱 Hábito programado con éxito' : '📌 Tarea registrada en tu agenda', '✅');
   render();
   syncDataToAppsScript('sync_all');
 };
 
-window.toggleTaskDone = (id) => {
-  const task = state.agenda.find(a => a.id === id);
-  if (task) {
-    task.done = !task.done;
-    saveState();
-    playChime(task.done ? 'success' : 'error');
-    toast(task.done ? '¡Actividad completada! +Disciplina 🔥' : 'Actividad marcada como pendiente', task.done ? '✅' : '↩️');
-    render();
+window.toggleTaskDone = (id, targetDate = todayStr()) => {
+  const item = (state.agenda || []).find(a => a.id === id);
+  if (!item) return;
+
+  if (item.type === 'habit') {
+    item.completedDates = item.completedDates || {};
+    item.completedDates[targetDate] = !item.completedDates[targetDate];
+    item.done = !!item.completedDates[todayStr()];
+  } else {
+    item.done = !item.done;
   }
+
+  saveState();
+  const isDone = item.type === 'habit' ? item.completedDates[targetDate] : item.done;
+  playChime(isDone ? 'success' : 'error');
+  toast(isDone ? '¡Hábito cumplido hoy! +Disciplina 🔥' : 'Marcado como pendiente', isDone ? '✅' : '↩️');
+  render();
 };
 
 window.deleteTransaction = (id) => {

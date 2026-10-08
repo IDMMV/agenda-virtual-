@@ -39,6 +39,15 @@
   --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06);
 }
 
+html {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  -webkit-text-size-adjust: 100%;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
@@ -47,7 +56,12 @@ body {
   min-height: 100vh;
   display: flex;
   overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  position: relative;
   line-height: 1.5;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -55,7 +69,14 @@ button { cursor: pointer; border: none; background: transparent; }
 .hidden { display: none !important; }
 
 /* App Layout */
-.app-container { display: flex; width: 100%; min-height: 100vh; position: relative; }
+.app-container {
+  display: flex;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
 
 /* Backdrop that closes sidebar on mobile when tapped anywhere */
 .sidebar-backdrop {
@@ -175,6 +196,9 @@ button { cursor: pointer; border: none; background: transparent; }
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: calc(100% - 260px);
+  max-width: calc(100% - 260px);
+  overflow-x: hidden;
 }
 
 /* Header */
@@ -191,6 +215,9 @@ button { cursor: pointer; border: none; background: transparent; }
   justify-content: space-between;
   padding: 0 24px;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .menu-toggle {
   display: none;
@@ -327,9 +354,11 @@ button { cursor: pointer; border: none; background: transparent; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: transform 0.15s, border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.kpi-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.15); }
+@media (hover: hover) and (pointer: fine) {
+  .kpi-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.15); }
+}
 .kpi-header { display: flex; justify-content: space-between; align-items: center; }
 .kpi-header span { font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
 .kpi-icon {
@@ -480,6 +509,59 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .p-mid { background: var(--warning-bg); color: var(--warning); }
 .p-low { background: var(--success-bg); color: var(--success); }
 
+/* Selector de días de hábitos */
+.habit-days-selector {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  width: 100%;
+}
+.day-chip {
+  text-align: center;
+  padding: 8px 2px;
+  border-radius: 8px;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  user-select: none;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.day-chip input {
+  display: none;
+}
+.day-chip.active {
+  background: var(--primary-glow);
+  color: var(--primary);
+  border-color: var(--primary);
+  font-weight: 800;
+}
+.habit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 750;
+}
+.habit-time-range {
+  font-weight: 800;
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
 /* Modals & Overlays */
 .overlay {
   position: fixed;
@@ -551,9 +633,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   flex-direction: column;
   gap: 12px;
   position: relative;
-  transition: transform 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.debt-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.15); }
+@media (hover: hover) and (pointer: fine) {
+  .debt-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.15); }
+}
 .debt-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .debt-card-header h4 { font-size: 16px; font-weight: 800; }
 .debt-installment-badge {
@@ -736,6 +820,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   .main-wrapper {
     margin-left: 0;
     padding-bottom: 74px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .menu-toggle {
     display: block;
@@ -744,17 +832,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
     display: grid;
   }
   .topbar {
-    padding: 0 14px;
+    padding: 0 12px;
     height: 62px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   .content-area {
-    padding: 14px;
+    padding: 12px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .dashboard-hero {
     grid-template-columns: 1fr;
     text-align: center;
     gap: 16px;
-    padding: 18px;
+    padding: 18px 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   .hero-gauge {
     margin: 0 auto;
@@ -764,17 +864,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   }
   .hero-tags {
     justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .hero-actions {
-    flex-direction: row;
+    flex-direction: column;
     width: 100%;
+    gap: 8px;
   }
   .hero-actions .btn {
-    flex: 1;
+    width: 100%;
+    flex: none;
   }
   .kpi-grid {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -782,19 +889,51 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   .topbar {
     gap: 6px;
     padding: 0 10px;
+    height: 58px;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .top-left {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    gap: 8px;
+  }
+  .page-title {
+    min-width: 0;
+    overflow: hidden;
   }
   .page-title p {
     display: none;
   }
   .page-title h2 {
-    font-size: 15px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+  }
+  .top-right {
+    gap: 6px;
+    flex-shrink: 0;
   }
   .badge-streak {
-    padding: 5px 8px;
+    padding: 4px 7px;
     font-size: 11px;
+    max-width: 95px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .user-chip {
+    padding: 4px;
   }
   .user-chip span {
     display: none;
+  }
+  .btn-quick-pin {
+    padding: 6px 8px;
   }
   .btn-quick-pin span:last-child {
     display: none;
@@ -874,8 +1013,33 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .installment-row:hover {
   background: var(--bg-card-hover);
 }
-.installment-row.paid {
-  opacity: 0.85;
+/* Day chips selector for habits */
+.day-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.day-chip input {
+  margin-right: 4px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.day-chip:hover {
+  border-color: var(--primary);
+}
+.day-chip:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+  color: var(--primary);
 }
 
 .status-badge {
@@ -968,12 +1132,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   justify-content: space-between;
   gap: 12px;
   position: relative;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.quad-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+@media (hover: hover) and (pointer: fine) {
+  .quad-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
 }
 .quad-card-head {
   display: flex;

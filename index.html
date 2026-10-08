@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -195,46 +195,88 @@
 
 <!-- Modal: Nueva Actividad / Hábito de Agenda -->
 <div class="overlay hidden" id="agendaModal">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:520px">
     <div class="modal-head">
-      <h3>Nueva Actividad o Hábito</h3>
+      <h3 id="agendaModalTitle">Nueva Actividad o Hábito</h3>
       <button class="close-btn" onclick="closeModal('agendaModal')">✕</button>
     </div>
     <form class="form-grid" onsubmit="saveAgendaItem(event)">
+      <input type="hidden" id="agId" value="">
+
       <div class="form-group">
-        <label>Título de la Actividad</label>
-        <input type="text" id="agTitle" required placeholder="Ej: Lectura 20 min, Llamar al cliente, Pagar recibo" maxlength="90">
+        <label>Título de la Actividad o Hábito</label>
+        <input type="text" id="agTitle" required placeholder="Ej: Lectura 20 min, Ejercicio matutino, Meditación" maxlength="90">
       </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
-          <label>Hora Programada</label>
-          <input type="time" id="agTime" required value="09:00">
+          <label>Tipo de Registro</label>
+          <select id="agType" onchange="onAgTypeChange()">
+            <option value="habit" selected>🌱 Hábito Diario / Recurrente</option>
+            <option value="task">📌 Tarea Puntual (Única)</option>
+          </select>
         </div>
-        <div class="form-group">
-          <label>Fecha</label>
-          <input type="date" id="agDate" required>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label>Prioridad</label>
           <select id="agPriority">
-            <option value="high">Alta (Urgente)</option>
+            <option value="high">Alta (Urgente / Clave)</option>
             <option value="mid" selected>Media (Normal)</option>
             <option value="low">Baja (Opcional)</option>
           </select>
         </div>
+      </div>
+
+      <!-- Sección Horario: Rango de Horario (Inicio y Fin) o Hora puntual -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
-          <label>Tipo</label>
-          <select id="agType">
-            <option value="task">📌 Tarea Puntual</option>
-            <option value="habit">🌱 Hábito Diario</option>
-          </select>
+          <label id="agTimeLabel">Hora de Inicio</label>
+          <input type="time" id="agTime" required value="07:00">
+        </div>
+        <div class="form-group" id="agEndTimeGroup">
+          <label>Hora de Fin (Rango)</label>
+          <input type="time" id="agEndTime" value="07:30">
         </div>
       </div>
+
+      <!-- Días en que se mantendrá el hábito (sólo para hábitos) -->
+      <div id="agHabitDaysSection" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:12px">
+        <label style="display:block;font-size:12.5px;font-weight:750;margin-bottom:8px">Días en que se mantendrá el hábito:</label>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm btn-soft" style="font-size:11px;padding:4px 8px" onclick="setHabitDaysPreset('all')">Todos los días</button>
+          <button type="button" class="btn btn-sm btn-soft" style="font-size:11px;padding:4px 8px" onclick="setHabitDaysPreset('weekdays')">Lun a Vie</button>
+          <button type="button" class="btn btn-sm btn-soft" style="font-size:11px;padding:4px 8px" onclick="setHabitDaysPreset('weekend')">Fines de semana</button>
+        </div>
+        <div class="habit-days-selector" id="habitDaysSelector">
+          <label class="day-chip active" data-day="1"><input type="checkbox" value="1" checked onchange="updateDayChipsUI()"><span>Lun</span></label>
+          <label class="day-chip active" data-day="2"><input type="checkbox" value="2" checked onchange="updateDayChipsUI()"><span>Mar</span></label>
+          <label class="day-chip active" data-day="3"><input type="checkbox" value="3" checked onchange="updateDayChipsUI()"><span>Mié</span></label>
+          <label class="day-chip active" data-day="4"><input type="checkbox" value="4" checked onchange="updateDayChipsUI()"><span>Jue</span></label>
+          <label class="day-chip active" data-day="5"><input type="checkbox" value="5" checked onchange="updateDayChipsUI()"><span>Vie</span></label>
+          <label class="day-chip active" data-day="6"><input type="checkbox" value="6" checked onchange="updateDayChipsUI()"><span>Sáb</span></label>
+          <label class="day-chip active" data-day="0"><input type="checkbox" value="0" checked onchange="updateDayChipsUI()"><span>Dom</span></label>
+        </div>
+      </div>
+
+      <!-- Vigencia y Fechas: Rango de fechas o fecha puntual -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label id="agDateLabel">Fecha de Inicio (Desde)</label>
+          <input type="date" id="agDate" required>
+        </div>
+        <div class="form-group" id="agEndDateGroup">
+          <label>Fecha de Fin (Hasta)</label>
+          <input type="date" id="agEndDate">
+        </div>
+      </div>
+
+      <div class="form-group" id="agIndefiniteGroup" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="agIndefinite" checked onchange="onAgIndefiniteChange()" style="width:18px;height:18px;cursor:pointer">
+        <label for="agIndefinite" style="cursor:pointer;font-size:12.5px;margin:0">Hábito continuo permanente (sin fecha de fin)</label>
+      </div>
+
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
         <button type="button" class="btn btn-soft" onclick="closeModal('agendaModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar en Agenda</button>
+        <button type="submit" class="btn btn-primary" id="agSubmitBtn">Guardar Hábito</button>
       </div>
     </form>
   </div>
