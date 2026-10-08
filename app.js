@@ -41,6 +41,9 @@ let state = {
   googleToken: null,
   appsScriptUrl: localStorage.getItem('mhogar_apps_script') || '',
   notificationsEnabled: (typeof Notification !== 'undefined') && Notification.permission === 'granted',
+  notifPreferences: { habits: true, debts: true, dailyNight: true, sound: true },
+  notifiedEventsToday: {},
+  quickShortcuts: null,
   biometricsEnabled: localStorage.getItem('mhogar_biometrics_enabled') === 'true',
   customCategories: { expense: {}, income: {} }
 };
@@ -219,6 +222,9 @@ try {
     if (parsed.pomodoroSessions) state.pomodoro.sessionsCompleted = parsed.pomodoroSessions;
     if (parsed.customCategories) state.customCategories = parsed.customCategories;
     if (parsed.autoLockEnabled !== undefined) state.autoLockEnabled = parsed.autoLockEnabled;
+    if (parsed.notifPreferences) state.notifPreferences = { ...state.notifPreferences, ...parsed.notifPreferences };
+    if (parsed.quickShortcuts) state.quickShortcuts = parsed.quickShortcuts;
+    if (parsed.notifiedEventsToday) state.notifiedEventsToday = parsed.notifiedEventsToday;
   }
 } catch (e) {
   console.warn('Error al cargar datos previos:', e);
@@ -258,7 +264,10 @@ function saveState() {
     pomodoroSessions: state.pomodoro.sessionsCompleted,
     biometricsEnabled: state.biometricsEnabled,
     autoLockEnabled: state.autoLockEnabled,
-    customCategories: state.customCategories
+    customCategories: state.customCategories,
+    notifPreferences: state.notifPreferences,
+    quickShortcuts: state.quickShortcuts,
+    notifiedEventsToday: state.notifiedEventsToday
   }));
 }
 
@@ -947,33 +956,709 @@ function setupAuth() {
   }
 }
 
-// Notificaciones Celular y PWA Offline
+// =============================================================
+// ATAJOS DE REGISTRO CON 1 TOQUE (ONE-TOUCH QUICK ACTIONS)
+// =============================================================
+const DEFAULT_QUICK_SHORTCUTS = [
+  { id: 'qs_lunch', label: 'Almuerzo / Menú', icon: '🍱', amount: 12.00, type: 'expense', category: 'Alimentación (Alimentos y Mercado)', concept: 'Menú / Almuerzo diario' },
+  { id: 'qs_bus', label: 'Pasaje / Micro', icon: '🚌', amount: 3.00, type: 'expense', category: 'Transporte y Combustible', concept: 'Pasajes / Metropolitano / Micro / Metro' },
+  { id: 'qs_coffee', label: 'Café / Refrigerio', icon: '☕', amount: 5.00, type: 'expense', category: 'Alimentación (Alimentos y Mercado)', concept: 'Snacks / Bebidas / Café' },
+  { id: 'qs_taxi', label: 'Taxi / InDrive', icon: '🚕', amount: 15.00, type: 'expense', category: 'Transporte y Combustible', concept: 'InDrive / Taxi aplicativo' },
+  { id: 'qs_fuel', label: 'Combustible', icon: '⛽', amount: 30.00, type: 'expense', category: 'Transporte y Combustible', concept: 'Combustible (Gasolina / GNV / GLP)' },
+  { id: 'qs_market', label: 'Compras / Mercado', icon: '🛒', amount: 50.00, type: 'expense', category: 'Alimentación (Alimentos y Mercado)', concept: 'Supermercado / Mercado' },
+  { id: 'qs_income50', label: '+S/ 50 Ingreso', icon: '💵', amount: 50.00, type: 'income', category: 'Ingresos Operativos', concept: 'Cobro de dinero / Venta' },
+  { id: 'qs_income100', label: '+S/ 100 Ingreso', icon: '💰', amount: 100.00, type: 'income', category: 'Ingresos Operativos', concept: 'Cobro de dinero / Venta' }
+];
+
+function getActiveShortcuts() {
+  if (!state.quickShortcuts || !Array.isArray(state.quickShortcuts) || state.quickShortcuts.length === 0) {
+    state.quickShortcuts = JSON.parse(JSON.stringify(DEFAULT_QUICK_SHORTCUTS));
+  }
+  return state.quickShortcuts;
+}
+
+window.executeQuickShortcut = (id) => {
+  const list = getActiveShortcuts();
+  const sc = list.find(s => s.id === id);
+  if (!sc) return;
+
+  const today = todayStr();
+  const tx = {
+    id: 'tx_' + Date.now(),
+    type: sc.type,
+    amount: sc.amount,
+    title: sc.label,
+    category: sc.category || (sc.type === 'income' ? 'Ingresos Operativos' : 'Alimentación (Alimentos y Mercado)'),
+    date: today,
+    method: 'Efectivo',
+    notes: '⚡ Registro con 1 toque'
+  };
+
+  state.transactions.unshift(tx);
+  saveState();
+  playChime(sc.type === 'income' ? 'celebrate' : 'success');
+  toast(`✓ Registrado con 1 toque: ${sc.icon} ${sc.label} (${formatMoney(sc.amount)})`, '⚡');
+  render();
+  syncDataToAppsScript('add_transaction', tx);
+};
+
+window.executeFreeQuickLog = (type) => {
+  const amtEl = $('#quickFreeAmount');
+  const titleEl = $('#quickFreeTitle');
+  const amount = parseFloat(amtEl?.value);
+  const title = titleEl?.value.trim() || (type === 'income' ? 'Ingreso Rápido' : 'Gasto Rápido');
+
+  if (!amount || isNaN(amount) || amount <= 0) {
+    toast('Ingresa un monto válido mayor a 0', '⚠️');
+    return;
+  }
+
+  const today = todayStr();
+  const tx = {
+    id: 'tx_' + Date.now(),
+    type: type,
+    amount: amount,
+    title: title,
+    category: type === 'income' ? 'Ingresos Operativos' : 'Alimentación (Alimentos y Mercado)',
+    date: today,
+    method: 'Efectivo',
+    notes: '⚡ Registro libre de 1 paso'
+  };
+
+  state.transactions.unshift(tx);
+  saveState();
+  if (amtEl) amtEl.value = '';
+  if (titleEl) titleEl.value = '';
+  closeModal('quickShortcutsModal');
+  playChime(type === 'income' ? 'celebrate' : 'success');
+  toast(`✓ Registrado: ${title} (${formatMoney(amount)})`, '⚡');
+  render();
+  syncDataToAppsScript('add_transaction', tx);
+};
+
+window.switchQuickShortcutsTab = (tabName) => {
+  const tabUse = $('#quickShortcutsTabUse');
+  const tabEdit = $('#quickShortcutsTabEdit');
+  const btnUse = $('#tabBtnUseShortcuts');
+  const btnEdit = $('#tabBtnEditShortcuts');
+
+  if (tabName === 'edit') {
+    if (tabUse) tabUse.classList.add('hidden');
+    if (tabEdit) tabEdit.classList.remove('hidden');
+    if (btnUse) btnUse.classList.remove('active');
+    if (btnEdit) btnEdit.classList.add('active');
+    renderQuickShortcutsEditor();
+  } else {
+    if (tabEdit) tabEdit.classList.add('hidden');
+    if (tabUse) tabUse.classList.remove('hidden');
+    if (btnEdit) btnEdit.classList.remove('active');
+    if (btnUse) btnUse.classList.add('active');
+    refreshQuickShortcutsGrid();
+  }
+};
+
+function refreshQuickShortcutsGrid() {
+  const grid = $('#quickShortcutsModalGrid');
+  if (grid) {
+    const list = getActiveShortcuts();
+    grid.innerHTML = list.map(s => `
+      <button class="quick-chip" onclick="executeQuickShortcut('${s.id}')" title="Registrar ${escHTML(s.label)}">
+        <span class="quick-chip-icon">${s.icon}</span>
+        <div class="quick-chip-info">
+          <span class="quick-chip-title">${escHTML(s.label)}</span>
+          <span class="quick-chip-val ${s.type === 'income' ? 'income' : ''}">${s.type === 'income' ? '+' : '-'} ${formatMoney(s.amount)}</span>
+        </div>
+      </button>
+    `).join('');
+  }
+}
+
+window.renderQuickShortcutsEditor = () => {
+  const listEl = $('#quickShortcutsEditList');
+  if (!listEl) return;
+  const list = getActiveShortcuts();
+
+  listEl.innerHTML = list.map(s => `
+    <div class="shortcut-edit-item" id="shortcut_item_${s.id}">
+      <span class="shortcut-edit-icon">${s.icon}</span>
+      <div class="shortcut-edit-details">
+        <input type="text" class="shortcut-edit-title-input" value="${escHTML(s.label)}" 
+               placeholder="Nombre del atajo" maxlength="35"
+               onchange="updateShortcutField('${s.id}', 'label', this.value)">
+        <span class="shortcut-edit-type-badge">
+          ${s.type === 'income' ? '🟢 Ingreso' : '🔴 Gasto'} · ${escHTML(s.category || 'Varios')}
+        </span>
+      </div>
+      <div class="shortcut-edit-amount-box" title="Escribe el monto que deseas para este atajo">
+        <span>S/</span>
+        <input type="number" step="0.50" min="0.10" class="shortcut-edit-amount-input" 
+               id="shortcut_amt_${s.id}" value="${Number(s.amount).toFixed(2)}"
+               onchange="updateShortcutField('${s.id}', 'amount', this.value)">
+      </div>
+      <button type="button" class="shortcut-edit-delete-btn" onclick="deleteQuickShortcut('${s.id}')" title="Eliminar este atajo">
+        🗑️
+      </button>
+    </div>
+  `).join('');
+};
+
+window.updateShortcutField = (id, field, val) => {
+  const list = getActiveShortcuts();
+  const sc = list.find(s => s.id === id);
+  if (!sc) return;
+
+  if (field === 'amount') {
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) {
+      toast('Ingresa un monto válido mayor a 0', '⚠️');
+      renderQuickShortcutsEditor();
+      return;
+    }
+    sc.amount = Number(num.toFixed(2));
+    // If label had an old amount like "+S/ 50 Ingreso", update label gracefully if user wants
+    if (sc.label.startsWith('+S/ ') && sc.label.includes('Ingreso')) {
+      sc.label = `+S/ ${sc.amount} Ingreso`;
+    }
+  } else if (field === 'label') {
+    const trimmed = String(val).trim();
+    if (!trimmed) {
+      toast('El nombre no puede estar vacío', '⚠️');
+      return;
+    }
+    sc.label = trimmed;
+  }
+
+  saveState();
+  toast(`✓ Atajo actualizado: ${sc.icon} ${sc.label} (${formatMoney(sc.amount)})`, '💾');
+  renderQuickBarHTML();
+  refreshQuickShortcutsGrid();
+};
+
+window.saveAllShortcutAmounts = () => {
+  const list = getActiveShortcuts();
+  let updatedCount = 0;
+
+  list.forEach(s => {
+    const input = $(`#shortcut_amt_${s.id}`);
+    if (input) {
+      const num = parseFloat(input.value);
+      if (!isNaN(num) && num > 0) {
+        s.amount = Number(num.toFixed(2));
+        if (s.label.startsWith('+S/ ') && s.label.includes('Ingreso')) {
+          s.label = `+S/ ${s.amount} Ingreso`;
+        }
+        updatedCount++;
+      }
+    }
+  });
+
+  saveState();
+  playChime('success');
+  toast(`✓ ¡Se guardaron los montos de ${updatedCount} atajos!`, '✅');
+  render();
+  renderQuickShortcutsEditor();
+};
+
+window.addNewQuickShortcut = () => {
+  const iconEl = $('#newShortcutIcon');
+  const labelEl = $('#newShortcutLabel');
+  const amtEl = $('#newShortcutAmount');
+  const typeEl = $('#newShortcutType');
+
+  const icon = iconEl?.value.trim() || '⚡';
+  const label = labelEl?.value.trim();
+  const amount = parseFloat(amtEl?.value);
+  const type = typeEl?.value || 'expense';
+
+  if (!label) {
+    toast('Por favor escribe un nombre para el atajo (ej: Desayuno, Pan)', '⚠️');
+    labelEl?.focus();
+    return;
+  }
+  if (!amount || isNaN(amount) || amount <= 0) {
+    toast('Por favor escribe un monto válido mayor a 0', '⚠️');
+    amtEl?.focus();
+    return;
+  }
+
+  const list = getActiveShortcuts();
+  const newId = 'qs_' + Date.now();
+  const newShortcut = {
+    id: newId,
+    label: label,
+    icon: icon,
+    amount: Number(amount.toFixed(2)),
+    type: type,
+    category: type === 'income' ? 'Ingresos Operativos' : 'Alimentación (Alimentos y Mercado)',
+    concept: label
+  };
+
+  list.push(newShortcut);
+  saveState();
+
+  if (labelEl) labelEl.value = '';
+  if (amtEl) amtEl.value = '';
+  if (iconEl) iconEl.value = '⚡';
+
+  playChime('success');
+  toast(`✓ ¡Atajo creado: ${icon} ${label} (${formatMoney(amount)})!`, '🎉');
+  renderQuickShortcutsEditor();
+  render();
+};
+
+window.deleteQuickShortcut = (id) => {
+  const list = getActiveShortcuts();
+  const idx = list.findIndex(s => s.id === id);
+  if (idx === -1) return;
+
+  const deleted = list[idx];
+  list.splice(idx, 1);
+  saveState();
+  toast(`✓ Atajo eliminado: ${deleted.label}`, '🗑️');
+  renderQuickShortcutsEditor();
+  render();
+};
+
+window.resetQuickShortcutsToDefault = () => {
+  if (!confirm('¿Deseas restaurar todos los atajos a sus montos originales de fábrica?')) return;
+  state.quickShortcuts = JSON.parse(JSON.stringify(DEFAULT_QUICK_SHORTCUTS));
+  saveState();
+  playChime('celebrate');
+  toast('✓ Se restauraron todos los atajos y montos originales', '🔄');
+  renderQuickShortcutsEditor();
+  render();
+};
+
+window.openEditShortcutsModal = () => {
+  const modal = $('#quickShortcutsModal');
+  if (modal) modal.classList.remove('hidden');
+  switchQuickShortcutsTab('edit');
+};
+
+window.quickCompleteNextHabit = () => {
+  const today = todayStr();
+  const todayTasks = getAgendaItemsForDate(today);
+  const pending = todayTasks.find(a => !a.isDoneToday);
+  if (!pending) {
+    toast('¡Todos tus hábitos y tareas de hoy ya están cumplidos!', '🎉');
+    playChime('celebrate');
+    return;
+  }
+  toggleTaskDone(pending.id, today);
+  playChime('celebrate');
+  toast(`✓ ¡Hábito cumplido con 1 toque: ${pending.title}!`, '🌱');
+  if ($('#quickNextHabitTitle')) {
+    const nextRemaining = todayTasks.filter(a => a.id !== pending.id && !a.isDoneToday);
+    $('#quickNextHabitTitle').textContent = nextRemaining.length ? `${nextRemaining[0].time} · ${nextRemaining[0].title}` : '✓ ¡Todos los hábitos de hoy completados!';
+  }
+};
+
+window.openQuickShortcutsModal = () => {
+  switchQuickShortcutsTab('use');
+  refreshQuickShortcutsGrid();
+
+  const today = todayStr();
+  const todayTasks = getAgendaItemsForDate(today);
+  const pending = todayTasks.find(a => !a.isDoneToday);
+  const labelEl = $('#quickNextHabitTitle');
+  if (labelEl) {
+    labelEl.textContent = pending ? `${pending.time} · ${pending.title}` : '✓ ¡Todos los hábitos de hoy completados!';
+  }
+
+  const modal = $('#quickShortcutsModal');
+  if (modal) modal.classList.remove('hidden');
+};
+
+function renderQuickBarHTML() {
+  const today = todayStr();
+  const todayTasks = getAgendaItemsForDate(today);
+  const nextPendingHabit = todayTasks.find(a => !a.isDoneToday);
+  const shortcuts = getActiveShortcuts();
+
+  return `
+    <div class="quick-bar-card">
+      <div class="quick-bar-head">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">⚡</span>
+          <div>
+            <strong style="font-size:14px;display:block">Atajos de Registro con 1 Toque</strong>
+            <small style="color:var(--text-muted);font-size:11.5px">Registra en 1 segundo o personaliza tus montos</small>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-success" style="background:#25d366;border-color:#25d366;font-size:11.5px;padding:4px 9px" onclick="openWhatsAppModal()">📲 Resumen Wasap</button>
+          <button class="btn btn-sm btn-soft" style="font-size:11.5px;padding:4px 9px" onclick="openQuickShortcutsModal()">⚡ Ver todos</button>
+          <button class="btn btn-sm btn-soft" style="font-size:11.5px;padding:4px 9px;border-color:var(--primary);color:var(--primary)" onclick="openEditShortcutsModal()" title="Cambiar los montos de cada atajo">⚙️ Variar montos</button>
+        </div>
+      </div>
+
+      <div class="quick-bar-chips">
+        ${shortcuts.slice(0, 5).map(s => `
+          <button class="quick-chip" onclick="executeQuickShortcut('${s.id}')" title="Registrar ${escHTML(s.label)}">
+            <span class="quick-chip-icon">${s.icon}</span>
+            <div class="quick-chip-info">
+              <span class="quick-chip-title">${escHTML(s.label)}</span>
+              <span class="quick-chip-val ${s.type === 'income' ? 'income' : ''}">${s.type === 'income' ? '+' : '-'} ${formatMoney(s.amount)}</span>
+            </div>
+          </button>
+        `).join('')}
+
+        <button class="quick-chip" style="border-color:rgba(16,185,129,0.35);background:rgba(16,185,129,0.06)" onclick="quickCompleteNextHabit()" title="Cumplir siguiente hábito de hoy">
+          <span class="quick-chip-icon">🌱</span>
+          <div class="quick-chip-info">
+            <span class="quick-chip-title">Hábito de Hoy</span>
+            <span class="quick-chip-val income" style="font-size:11px">${nextPendingHabit ? escHTML(nextPendingHabit.title.slice(0, 14)) : '✓ Al día'}</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// =============================================================
+// RESUMEN DIARIO PARA WHATSAPP (WASAP)
+// =============================================================
+function buildWhatsAppSummaryText() {
+  const today = todayStr();
+  const userName = state.user?.name || 'José Hugo';
+  const now = new Date();
+  const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const dayName = dayNames[now.getDay()];
+  const dateFormatted = `${dayName}, ${now.getDate()} de ${monthNames[now.getMonth()]} de ${now.getFullYear()}`;
+
+  const todayIncome = state.transactions.filter(t => t.type === 'income' && t.date === today).reduce((s, x) => s + x.amount, 0);
+  const todayExpense = state.transactions.filter(t => t.type === 'expense' && t.date === today).reduce((s, x) => s + x.amount, 0);
+  const todayNet = todayIncome - todayExpense;
+  const balance = allTimeBalance();
+
+  const cm = today.slice(0, 7);
+  const debt = computeDebt(cm);
+
+  const todayTasks = getAgendaItemsForDate(today);
+  const doneTasks = todayTasks.filter(a => a.isDoneToday).length;
+  const taskPct = todayTasks.length ? Math.round((doneTasks / todayTasks.length) * 100) : 100;
+
+  const score = calculateDisciplineScore();
+  const streak = getDisciplineStreak();
+
+  let txt = `*📊 MI HOGAR AL DÍA | RESUMEN DIARIO*\n`;
+  txt += `📅 *Fecha:* ${dateFormatted}\n`;
+  txt += `👤 *Titular:* ${userName}\n\n`;
+
+  txt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  txt += `*💰 BALANCE & FINANZAS DE HOY*\n`;
+  txt += `• 🟢 Ingresos hoy: ${formatMoney(todayIncome)}\n`;
+  txt += `• 🔴 Gastos hoy: ${formatMoney(todayExpense)}\n`;
+  txt += `• ⚖️ Balance neto hoy: ${todayNet >= 0 ? '+' : ''}${formatMoney(todayNet)}\n`;
+  txt += `• 💼 *Saldo disponible acumulado:* ${formatMoney(balance)}\n\n`;
+
+  txt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  txt += `*💳 COMPROMISOS & DEUDAS*\n`;
+  if (debt.next && debt.nextDebt) {
+    txt += `• ⏰ Próxima cuota: ${debt.nextDebt.title} (Cuota ${debt.next.number}/${debt.nextDebt.installmentsCount})\n`;
+    txt += `  Vence: ${debt.next.dueDate} · Monto: ${formatMoney(debt.next.amount)}\n`;
+  } else {
+    txt += `• ✓ Sin cuotas urgentes pendientes\n`;
+  }
+  txt += `• 📌 Cuotas del mes: ${formatMoney(debt.monthDue)} · Amortizado: ${debt.amortPct}%\n\n`;
+
+  txt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  txt += `*🌱 HÁBITOS & AGENDA DE HOY (${doneTasks}/${todayTasks.length} cumplidos - ${taskPct}%)*\n`;
+  if (todayTasks.length) {
+    todayTasks.forEach(item => {
+      const icon = item.isDoneToday ? '✅' : '⏳';
+      const timeStr = item.time + (item.endTime ? ` a ${item.endTime}` : '');
+      const statusStr = item.isDoneToday ? '(Cumplido)' : '(Pendiente)';
+      txt += `${icon} ${timeStr} · ${item.title} ${statusStr}\n`;
+    });
+  } else {
+    txt += `• Sin hábitos programados para hoy\n`;
+  }
+  txt += `\n`;
+
+  txt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  txt += `*🔥 DISCIPLINA & CONSTANCIA*\n`;
+  txt += `• Puntaje de disciplina hoy: ${score}%\n`;
+  txt += `• Racha de constancia: 🔥 ${streak} ${streak === 1 ? 'día consecutivo' : 'días consecutivos'}\n\n`;
+
+  txt += `💡 _"La constancia diaria es el secreto de la libertad financiera y la tranquilidad familiar."_`;
+
+  return txt;
+}
+
+window.openWhatsAppModal = () => {
+  const today = todayStr();
+  const text = buildWhatsAppSummaryText();
+  const box = $('#whatsappPreviewBox');
+  if (box) box.textContent = text;
+
+  const dateDisp = $('#waSummaryDateDisplay');
+  if (dateDisp) dateDisp.textContent = today;
+
+  const scoreBadge = $('#waSummaryScoreBadge');
+  if (scoreBadge) scoreBadge.textContent = `Disciplina: ${calculateDisciplineScore()}%`;
+
+  const modal = $('#whatsappModal');
+  if (modal) modal.classList.remove('hidden');
+};
+
+window.shareWhatsAppDailySummary = () => {
+  const text = buildWhatsAppSummaryText();
+  const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+};
+
+window.copyWhatsAppDailySummary = async () => {
+  const text = buildWhatsAppSummaryText();
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('¡Resumen diario copiado al portapapeles!', '📋');
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('¡Resumen diario copiado al portapapeles!', '📋');
+  }
+};
+
+window.shareNativeDailySummary = async () => {
+  const text = buildWhatsAppSummaryText();
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Mi Hogar al Día - Resumen Diario',
+        text: text
+      });
+      toast('Resumen compartido exitosamente', '📲');
+      return;
+    } catch (e) {}
+  }
+  shareWhatsAppDailySummary();
+};
+
+// =============================================================
+// NOTIFICACIONES & RECORDATORIOS EN EL CELULAR
+// =============================================================
+function sendMobileNotification(title, body, tag = 'mh-alert', data = {}) {
+  if (state.notifPreferences?.sound !== false) {
+    playChime('success');
+  }
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      payload: {
+        title,
+        body,
+        tag,
+        icon: './icons/icon-192.svg',
+        data
+      }
+    });
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body,
+        icon: './icons/icon-192.svg',
+        badge: './icons/icon-192.svg',
+        tag
+      });
+    } catch (e) {}
+  }
+  toast(body, '🔔');
+}
+
+window.requestMobileNotifications = async () => {
+  if (!('Notification' in window)) {
+    toast('Tu navegador o dispositivo no soporta notificaciones de sistema', '⚠️');
+    updateNotifUI();
+    return;
+  }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      state.notificationsEnabled = true;
+      saveState();
+      playChime('celebrate');
+      toast('¡Notificaciones y recordatorios activados en tu celular!', '🔔');
+      sendMobileNotification(
+        'Mi Hogar al Día · Recordatorios Activos',
+        'Los recordatorios de hábitos, cuotas y finanzas te avisarán en este celular.',
+        'mh-welcome'
+      );
+    } else {
+      toast('Permiso de notificaciones no concedido. Habilítalo en los ajustes del navegador', '❌');
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  updateNotifUI();
+};
+
+window.saveNotifPreferences = () => {
+  state.notifPreferences = {
+    habits: $('#notifHabitsPref') ? $('#notifHabitsPref').checked : true,
+    debts: $('#notifDebtsPref') ? $('#notifDebtsPref').checked : true,
+    dailyNight: $('#notifDailyNightPref') ? $('#notifDailyNightPref').checked : true,
+    sound: $('#notifSoundPref') ? $('#notifSoundPref').checked : true
+  };
+  saveState();
+  toast('Preferencias de recordatorios actualizadas', '✅');
+};
+
+function updateNotifUI() {
+  const statusBadge = $('#notifStatusBadge');
+  const statusText = $('#notifStatusText');
+  const reqBtn = $('#requestNotifBtn');
+  const topIcon = $('#topNotifIcon');
+
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+
+  if (perm === 'granted') {
+    if (statusBadge) {
+      statusBadge.textContent = 'Activo ✓';
+      statusBadge.className = 'status-badge status-paid';
+    }
+    if (statusText) statusText.textContent = 'Notificaciones y alarmas permitidas en este dispositivo.';
+    if (reqBtn) {
+      reqBtn.textContent = '✓ Notificaciones Habilitadas';
+      reqBtn.className = 'btn btn-success';
+    }
+    if (topIcon) topIcon.textContent = '🔔';
+  } else if (perm === 'denied') {
+    if (statusBadge) {
+      statusBadge.textContent = 'Bloqueado';
+      statusBadge.className = 'status-badge status-overdue';
+    }
+    if (statusText) statusText.textContent = 'Bloqueado en el navegador. Toca el candado o permisos en tu navegador.';
+    if (reqBtn) {
+      reqBtn.textContent = 'Desbloquear en Ajustes del Navegador';
+      reqBtn.className = 'btn btn-soft';
+    }
+    if (topIcon) topIcon.textContent = '🔕';
+  } else {
+    if (statusBadge) {
+      statusBadge.textContent = 'Pendiente';
+      statusBadge.className = 'status-badge status-pending';
+    }
+    if (statusText) statusText.textContent = 'Aún no has activado las notificaciones en este celular.';
+    if (reqBtn) {
+      reqBtn.textContent = '🔔 Activar Notificaciones en mi Celular';
+      reqBtn.className = 'btn btn-primary';
+    }
+    if (topIcon) topIcon.textContent = '🔔';
+  }
+
+  // Sincronizar checkboxes
+  if ($('#notifHabitsPref')) $('#notifHabitsPref').checked = state.notifPreferences?.habits !== false;
+  if ($('#notifDebtsPref')) $('#notifDebtsPref').checked = state.notifPreferences?.debts !== false;
+  if ($('#notifDailyNightPref')) $('#notifDailyNightPref').checked = state.notifPreferences?.dailyNight !== false;
+  if ($('#notifSoundPref')) $('#notifSoundPref').checked = state.notifPreferences?.sound !== false;
+}
+
+window.openNotifModal = () => {
+  updateNotifUI();
+  const modal = $('#notifModal');
+  if (modal) modal.classList.remove('hidden');
+};
+
+window.testMobileNotification = () => {
+  sendMobileNotification(
+    '🔔 Prueba de Alerta Exitosa',
+    'Las notificaciones y recordatorios funcionan perfectamente en tu celular.',
+    'mh-test-' + Date.now()
+  );
+};
+
+// Verificador periódico de recordatorios de hábitos, cuotas y noche
+function checkAndTriggerDueReminders() {
+  const today = todayStr();
+  if (!state.notifiedEventsToday) state.notifiedEventsToday = {};
+  if (!state.notifiedEventsToday[today]) state.notifiedEventsToday[today] = {};
+  const sentToday = state.notifiedEventsToday[today];
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMin = now.getMinutes();
+  const currentTimeNum = currentHour * 60 + currentMin;
+
+  // 1. Recordatorios de hábitos en su hora programada
+  if (state.notifPreferences?.habits !== false) {
+    const todayTasks = getAgendaItemsForDate(today);
+    todayTasks.forEach(task => {
+      if (task.isDoneToday) return;
+      if (!task.time) return;
+
+      const [h, m] = task.time.split(':').map(Number);
+      const taskTimeNum = h * 60 + (m || 0);
+      const diff = taskTimeNum - currentTimeNum;
+
+      if (diff >= -15 && diff <= 15 && !sentToday['habit_' + task.id]) {
+        sentToday['habit_' + task.id] = true;
+        saveState();
+        sendMobileNotification(
+          `🌱 Hora de tu Hábito: ${task.title}`,
+          `Son las ${task.time}. ¡Cumple tu hábito de hoy y mantén tu racha activa!`,
+          'habit-' + task.id
+        );
+      }
+    });
+  }
+
+  // 2. Alertas de cuotas y deudas por vencer hoy
+  if (state.notifPreferences?.debts !== false) {
+    const cm = today.slice(0, 7);
+    const debt = computeDebt(cm);
+    if (debt.next && debt.next.dueDate === today && !sentToday['debt_due_' + debt.nextDebt.id]) {
+      sentToday['debt_due_' + debt.nextDebt.id] = true;
+      saveState();
+      sendMobileNotification(
+        `💳 Cuota de Deuda Vence Hoy`,
+        `Hoy vence la cuota de ${debt.nextDebt.title} por ${formatMoney(debt.next.amount)}. ¡Págala a tiempo!`,
+        'debt-due-' + debt.nextDebt.id
+      );
+    }
+  }
+
+  // 3. Recordatorio nocturno de registro de gastos (a partir de las 20:00)
+  if (state.notifPreferences?.dailyNight !== false && currentHour >= 20) {
+    if (!sentToday['night_reminder']) {
+      const todayExpenses = state.transactions.filter(t => t.type === 'expense' && t.date === today);
+      if (todayExpenses.length === 0) {
+        sentToday['night_reminder'] = true;
+        saveState();
+        sendMobileNotification(
+          `🌙 Registro Diario de Gastos`,
+          `¿Registraste todos tus gastos de hoy? Mantén tus cuentas claras y protege tu racha 🔥.`,
+          'night-reminder'
+        );
+      }
+    }
+  }
+}
+
+// Inicializador de Notificaciones y PWA
 function setupNotifications() {
+  updateNotifUI();
+
+  if (!window._reminderInterval) {
+    window._reminderInterval = setInterval(checkAndTriggerDueReminders, 60000);
+    setTimeout(checkAndTriggerDueReminders, 3000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      checkAndTriggerDueReminders();
+    }
+  });
+
   const btn = $('#enableNotifBtn');
   if (btn) {
-    btn.onclick = async () => {
-      if (!('Notification' in window)) {
-        toast('Tu navegador no soporta notificaciones de sistema', '⚠️');
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        state.notificationsEnabled = true;
-        toast('¡Notificaciones activas en segundo plano!', '🔔');
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            payload: {
-              title: 'Gestión Personal · Recordatorios Activos',
-              body: 'Recordatorios diarios de cuotas, finanzas y agenda activos.'
-            }
-          });
-        }
-      } else {
-        toast('Permiso de notificaciones no concedido', '❌');
-      }
-      render();
-    };
+    btn.onclick = () => requestMobileNotifications();
   }
 
   // PWA Install Prompt
@@ -1205,8 +1890,12 @@ function renderDashboard(container) {
         <button class="btn btn-primary" onclick="openTxModal('expense')">－ Registrar Gasto</button>
         <button class="btn btn-success" onclick="openTxModal('income')">＋ Registrar Ingreso</button>
         <button class="btn btn-soft" onclick="openPayDebtModalPrompt()">💳 Pagar Cuota</button>
+        <button class="btn btn-success" style="background:#25d366;border-color:#25d366" onclick="openWhatsAppModal()">📲 Resumen WhatsApp</button>
+        <button class="btn btn-warning" onclick="openQuickShortcutsModal()">⚡ Atajos 1 Toque</button>
       </div>
     </div>
+
+    ${renderQuickBarHTML()}
 
     <div class="top-kpi-trio">
       <div class="quad-card" style="border-left: 4px solid var(--primary);">
@@ -1562,7 +2251,7 @@ function renderDeudas(container) {
           <button class="btn btn-primary" onclick="openDebtModal()">＋ Crear Deuda por Pagar</button>
         </div>
       ` : `
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-top:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 280px),1fr));gap:16px;margin-top:10px">
           ${activeDebts.map(debt => {
             const insts = debt.installments || [];
             const paidInsts = insts.filter(i => i.status === 'paid');
@@ -1650,7 +2339,7 @@ function renderDeudas(container) {
           <h3>🏆 Deudas 100% Canceladas (${completedDebts.length})</h3>
           <span style="font-size:12px;color:var(--success)">¡Objetivo de desendeudamiento logrado!</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 260px),1fr));gap:14px;margin-top:10px">
           ${completedDebts.map(d => `
             <div style="background:var(--bg-secondary);border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:14px;display:flex;justify-content:space-between;align-items:center">
               <div>
@@ -2170,7 +2859,7 @@ function renderAgenda(container) {
                 ${item.type === 'habit' ? `<span style="color:var(--text-dim)">Vigencia: ${item.startDate || item.date}${item.isIndefinite || !item.endDate ? ' (Permanente)' : ' hasta ' + item.endDate}</span>` : `<span>Fecha: ${item.date}</span>`}
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px">
+            <div class="agenda-card-actions" style="display:flex;align-items:center;gap:6px">
               <input type="checkbox" style="width:22px;height:22px;cursor:pointer" ${item.isDoneToday ? 'checked' : ''} onchange="toggleTaskDone('${item.id}', '${viewDate}')" title="Marcar como cumplido">
               <button class="btn btn-sm btn-soft" onclick="openAgendaModal('${item.id}')" title="Editar hábito o tarea">✏️</button>
               <button class="btn btn-sm btn-soft" onclick="openGoogleCalendarForTask('${item.id}')" title="Añadir a Google Calendar">📅</button>
@@ -2198,7 +2887,7 @@ function renderAgenda(container) {
         <button class="btn btn-sm btn-primary" onclick="openAgendaModal(null, 'habit')">＋ Crear Hábito</button>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px;margin-top:10px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 260px), 1fr));gap:14px;margin-top:10px">
         ${allHabits.length ? allHabits.map(h => {
           const completedTotal = Object.keys(h.completedDates || {}).filter(k => h.completedDates[k]).length;
           const isDoneToday = (h.completedDates || {})[today];
@@ -3340,7 +4029,7 @@ function renderGoogle(container) {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 280px),1fr));gap:16px">
       <!-- Google Calendar Sync Card -->
       <div class="card-panel">
         <div class="panel-head">
@@ -3463,7 +4152,7 @@ function renderSeguridad(container) {
       <p style="color:var(--text-muted);font-size:13px">Protege tus finanzas y configura el acceso rápido desde tu teléfono móvil.</p>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 280px),1fr));gap:16px">
       <div class="card-panel">
         <div class="panel-head">
           <h3>🔐 Acceso en Dos Pasos (2FA)</h3>

@@ -89,9 +89,18 @@
       </div>
 
       <div class="top-right">
+        <button class="btn-topbar-action btn-wasap-top" onclick="openWhatsAppModal()" title="Generar y Enviar Resumen Diario a WhatsApp">
+          <span>📲</span> <span class="btn-topbar-text">WhatsApp</span>
+        </button>
+        <button class="btn-topbar-action btn-notif-top" id="topNotifBtn" onclick="openNotifModal()" title="Notificaciones y Recordatorios en el Celular">
+          <span id="topNotifIcon">🔔</span> <span class="btn-topbar-text">Recordatorios</span>
+        </button>
+        <button class="btn-topbar-action btn-quick-top" onclick="openQuickShortcutsModal()" title="Atajos de Registro con 1 Toque">
+          <span>⚡</span> <span class="btn-topbar-text">1 Toque</span>
+        </button>
         <div class="badge-streak" id="streakBadge">🔥 7 días racha</div>
         <button class="btn-quick-pin" id="pinLockToggle" onclick="lockSession()" title="Bloquear pantalla / Cerrar sesión">
-          <span>🔒</span> <span>Bloquear / Salir</span>
+          <span>🔒</span> <span>Bloquear</span>
         </button>
         <div class="user-chip" id="userChip" style="cursor:pointer" title="Configurar perfil de usuario">
           <div class="avatar-circle">JH</div>
@@ -811,6 +820,239 @@
       💡 <b>Tip móvil:</b> Al pulsar <i>Descargar Calendario Móvil (.ICS)</i>, tu celular Android abrirá Google Calendar automáticamente para importar todas tus tareas y recordatorios con 1 solo toque.
     </div>
   </div>
+</div>
+
+<!-- Modal: Resumen Diario para WhatsApp (Wasap) -->
+<div class="overlay hidden" id="whatsappModal">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px;color:#25d366">📲</span>
+        <div>
+          <h3 style="margin:0">Resumen Diario para WhatsApp</h3>
+          <small style="color:var(--text-muted)">Reporte diario de finanzas, hábitos y disciplina listo para enviar</small>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeModal('whatsappModal')">✕</button>
+    </div>
+
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <span style="font-size:11px;color:var(--text-dim);text-transform:uppercase;font-weight:750">Fecha del Reporte</span>
+        <strong id="waSummaryDateDisplay" style="display:block;font-size:13.5px">-</strong>
+      </div>
+      <span class="status-badge status-paid" id="waSummaryScoreBadge">Disciplina: -%</span>
+    </div>
+
+    <!-- Vista previa con estilo de chat de WhatsApp -->
+    <div class="whatsapp-preview-box" id="whatsappPreviewBox" contenteditable="false">
+      <!-- Inyectado dinámicamente -->
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <button type="button" class="btn btn-success" style="background:#25d366;border-color:#25d366;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px" onclick="shareWhatsAppDailySummary()">
+        <span>📲</span> <span>Enviar a WhatsApp</span>
+      </button>
+      <button type="button" class="btn btn-primary" style="display:flex;align-items:center;justify-content:center;gap:8px" onclick="shareNativeDailySummary()">
+        <span>📤</span> <span>Compartir (Celular)</span>
+      </button>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <button type="button" class="btn btn-sm btn-soft" onclick="copyWhatsAppDailySummary()">📋 Copiar Texto Completo</button>
+      <button type="button" class="btn btn-sm btn-soft" onclick="closeModal('whatsappModal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Notificaciones & Recordatorios en el Celular -->
+<div class="overlay hidden" id="notifModal">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px;color:var(--warning)">🔔</span>
+        <div>
+          <h3 style="margin:0">Notificaciones y Recordatorios Móviles</h3>
+          <small style="color:var(--text-muted)">Alertas automáticas en tu celular para hábitos, cuotas y finanzas</small>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeModal('notifModal')">✕</button>
+    </div>
+
+    <!-- Estado del permiso de notificaciones -->
+    <div id="notifStatusBox" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <strong style="font-size:14px;display:block">Permiso en este Dispositivo:</strong>
+          <span id="notifStatusText" style="font-size:12.5px;color:var(--text-muted)">Comprobando estado…</span>
+        </div>
+        <span class="status-badge" id="notifStatusBadge">Pendiente</span>
+      </div>
+      <button type="button" class="btn btn-primary" id="requestNotifBtn" style="width:100%;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px" onclick="requestMobileNotifications()">
+        <span>🔔</span> <span>Activar Notificaciones en mi Celular</span>
+      </button>
+    </div>
+
+    <!-- Opciones de alertas programadas -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div class="notif-card-box">
+        <div class="notif-info">
+          <strong>🌱 Recordatorio de Hábitos a su Hora</strong>
+          <small>Te avisa en el horario exacto o 15 minutos antes de iniciar tu hábito diario.</small>
+        </div>
+        <input type="checkbox" id="notifHabitsPref" checked onchange="saveNotifPreferences()" style="width:20px;height:20px;cursor:pointer;accent-color:var(--primary)">
+      </div>
+
+      <div class="notif-card-box">
+        <div class="notif-info">
+          <strong>💳 Alerta de Cuotas y Deudas por Vencer</strong>
+          <small>Te notifica el día del vencimiento de cuotas de tus préstamos o tarjetas.</small>
+        </div>
+        <input type="checkbox" id="notifDebtsPref" checked onchange="saveNotifPreferences()" style="width:20px;height:20px;cursor:pointer;accent-color:var(--primary)">
+      </div>
+
+      <div class="notif-card-box">
+        <div class="notif-info">
+          <strong>🌙 Recordatorio Diario de Gastos (Noche)</strong>
+          <small>Alerta al final del día para recordarte registrar tus gastos y mantener tu racha 🔥.</small>
+        </div>
+        <input type="checkbox" id="notifDailyNightPref" checked onchange="saveNotifPreferences()" style="width:20px;height:20px;cursor:pointer;accent-color:var(--primary)">
+      </div>
+
+      <div class="notif-card-box">
+        <div class="notif-info">
+          <strong>🔊 Sonidos y Timbre de Confirmación</strong>
+          <small>Emite un tono suave cada vez que cumples un hábito o registras un movimiento.</small>
+        </div>
+        <input type="checkbox" id="notifSoundPref" checked onchange="saveNotifPreferences()" style="width:20px;height:20px;cursor:pointer;accent-color:var(--primary)">
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <button type="button" class="btn btn-sm btn-soft" onclick="testMobileNotification()">🔔 Probar Alerta Ahora</button>
+      <button type="button" class="btn btn-sm btn-primary" onclick="closeModal('notifModal')">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Atajos de Registro con 1 Toque -->
+<div class="overlay hidden" id="quickShortcutsModal">
+  <div class="modal-box" style="max-width:540px">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px;color:var(--primary)">⚡</span>
+        <div>
+          <h3 style="margin:0">Atajos de Registro con 1 Toque</h3>
+          <small style="color:var(--text-muted)">Registra o personaliza tus montos rápidos cotidianos</small>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeModal('quickShortcutsModal')">✕</button>
+    </div>
+
+    <!-- Pestañas de Vista: Usar vs Modificar Montos -->
+    <div class="shortcuts-tabs">
+      <button type="button" class="shortcut-tab-btn active" id="tabBtnUseShortcuts" onclick="switchQuickShortcutsTab('use')">
+        ⚡ Registrar con 1 Toque
+      </button>
+      <button type="button" class="shortcut-tab-btn" id="tabBtnEditShortcuts" onclick="switchQuickShortcutsTab('edit')">
+        ✏️ Modificar Montos y Atajos
+      </button>
+    </div>
+
+    <!-- PESTAÑA 1: USAR ATAJOS DIRECTOS -->
+    <div id="quickShortcutsTabUse">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:12px">
+        <span>💡 <strong>¿Deseas variar los montos?</strong> Puedes cambiarlos o crear nuevos.</span>
+        <button type="button" class="btn btn-sm btn-soft" style="font-size:11px;padding:3px 8px;font-weight:700" onclick="switchQuickShortcutsTab('edit')">✏️ Cambiar Montos</button>
+      </div>
+
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:10px">
+        Pulsa cualquier atajo para registrarlo inmediatamente con la fecha de hoy:
+      </p>
+
+      <!-- Atajos predefinidos de 1 toque -->
+      <div class="quick-bar-chips" id="quickShortcutsModalGrid" style="margin-bottom:16px">
+        <!-- Inyectado dinámicamente -->
+      </div>
+
+      <!-- Registro Rápido Libre de 1 Paso -->
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <strong style="font-size:13px;display:block;margin-bottom:8px">⚡ Registro Rápido Instantáneo (Monto variable libre):</strong>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;margin-bottom:10px">
+          <input type="number" id="quickFreeAmount" placeholder="S/ 0.00" step="0.10" min="0.10" style="padding:9px 12px;font-size:14px;font-weight:700">
+          <input type="text" id="quickFreeTitle" placeholder="Ej: Taxi, Agua, Pan, Colectivo..." maxlength="60" style="padding:9px 12px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-danger btn-sm" style="flex:1" onclick="executeFreeQuickLog('expense')">－ Registrar Gasto Rápido</button>
+          <button type="button" class="btn btn-success btn-sm" style="flex:1" onclick="executeFreeQuickLog('income')">＋ Registrar Ingreso</button>
+        </div>
+      </div>
+
+      <!-- Acción rápida de hábitos -->
+      <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px">
+        <div>
+          <strong style="font-size:13px;color:var(--success);display:block">🌱 Siguiente Hábito de Hoy</strong>
+          <small style="color:var(--text-muted)" id="quickNextHabitTitle">Buscando hábito pendiente…</small>
+        </div>
+        <button type="button" class="btn btn-sm btn-success" onclick="quickCompleteNextHabit()">✓ Cumplir con 1 Toque</button>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button type="button" class="btn btn-sm btn-soft" onclick="switchQuickShortcutsTab('edit')">⚙️ Modificar Montos</button>
+        <button type="button" class="btn btn-soft" onclick="closeModal('quickShortcutsModal')">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- PESTAÑA 2: MODIFICAR / VARIAR MONTOS Y ATAJOS -->
+    <div id="quickShortcutsTabEdit" class="hidden">
+      <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        <strong style="font-size:13px;display:block">✏️ Edita los Montos de tus Atajos</strong>
+        <small style="color:var(--text-muted);font-size:11.5px">Modifica el valor en Soles de cada atajo. Puedes ajustarlos según lo que gastas habitualmente (ej: menú a S/ 14, pasaje a S/ 2.50).</small>
+      </div>
+
+      <!-- Lista editable de atajos -->
+      <div class="shortcut-edit-list" id="quickShortcutsEditList">
+        <!-- Renderizado dinámicamente con inputs para cada monto -->
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <button type="button" class="btn btn-sm btn-primary" onclick="saveAllShortcutAmounts()">💾 Guardar Todos los Montos</button>
+        <button type="button" class="btn btn-sm btn-soft" style="color:var(--text-muted)" onclick="resetQuickShortcutsToDefault()">🔄 Restaurar Valores de Fábrica</button>
+      </div>
+
+      <!-- Formulario para Añadir Nuevo Atajo Personalizado -->
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px">
+        <strong style="font-size:12.5px;display:block;margin-bottom:8px">➕ Crear Nuevo Atajo Personalizado:</strong>
+        <div style="display:grid;grid-template-columns:55px 1fr 100px;gap:8px;margin-bottom:8px">
+          <input type="text" id="newShortcutIcon" value="⚡" maxlength="4" title="Emoji o icono" style="padding:7px;text-align:center;font-size:16px">
+          <input type="text" id="newShortcutLabel" placeholder="Nombre (ej: Desayuno, Pan, Gas...)" maxlength="30" style="padding:7px 10px;font-size:12.5px">
+          <input type="number" id="newShortcutAmount" placeholder="S/ 0.00" step="0.50" min="0.10" style="padding:7px 10px;font-size:13px;font-weight:700">
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <select id="newShortcutType" style="padding:6px 10px;font-size:12px;border-radius:8px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border)">
+            <option value="expense">Tipo: Gasto (－)</option>
+            <option value="income">Tipo: Ingreso (＋)</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-success" onclick="addNewQuickShortcut()">➕ Agregar Atajo</button>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button type="button" class="btn btn-sm btn-soft" onclick="switchQuickShortcutsTab('use')">← Volver a Atajos (1 Toque)</button>
+        <button type="button" class="btn btn-soft" onclick="closeModal('quickShortcutsModal')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Quick Action Dock (Flotante en Celulares) -->
+<div class="mobile-quick-dock" id="mobileQuickDock">
+  <button class="fab-btn fab-flash" onclick="openQuickShortcutsModal()" title="Atajos de registro con 1 toque">
+    <span>⚡</span> <span>Atajos 1 Toque</span>
+  </button>
+  <button class="fab-btn fab-wasap" onclick="openWhatsAppModal()" title="Generar Resumen Diario para WhatsApp">
+    <span>📲</span> <span>Resumen Wasap</span>
+  </button>
 </div>
 
 <!-- Service Worker Registration -->

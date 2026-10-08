@@ -1289,12 +1289,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   color: var(--text-main);
 }
 
-/* Trio Cards: Saldo Actual, Ingresos Totales, Deudas Totales */
-.top-kpi-trio {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
 }
 
 /* Tarjeta Práctica Maestra de Finanzas */
@@ -1452,6 +1446,431 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
 canvas.chart { display: block; width: 100%; border-radius: 10px; background: rgba(127, 127, 127, 0.08); }
 @media (max-width: 680px) {
-  .dash-grid { grid-template-columns: 1fr; }
-  .cat-row { grid-template-columns: 84px 1fr 96px; gap: 8px; }
+  .dash-grid,
+  .top-kpi-trio,
+  .kpi-grid,
+  .recurring-grid,
+  .saving-grid,
+  .commitment-formula-grid,
+  .practical-metrics-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .practical-vs-grid {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .cat-row {
+    grid-template-columns: 78px 1fr auto;
+    gap: 6px;
+    font-size: 11.5px;
+  }
+  .quad-card-value {
+    font-size: 24px !important;
+  }
+  .practical-status-amount {
+    font-size: 26px !important;
+  }
 }
+
+/* Responsive Form Rows Inside Modals: Stacks 2-col inline grids on mobile so inputs don't overflow */
+@media (max-width: 580px) {
+  .form-grid [style*="grid-template-columns:1fr 1fr"],
+  .form-grid [style*="grid-template-columns: 1fr 1fr"],
+  .form-grid [style*="grid-template-columns:repeat(2"],
+  .form-grid [style*="grid-template-columns: repeat(2"],
+  .form-grid [style*="grid-template-columns:repeat(4"],
+  .form-grid [style*="grid-template-columns: repeat(4"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .modal-box {
+    max-width: min(500px, 94vw) !important;
+    width: 100% !important;
+    padding: 16px 12px !important;
+    margin: auto !important;
+  }
+  .agenda-card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+  .agenda-card-actions {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 8px !important;
+    border-top: 1px solid var(--border) !important;
+    padding-top: 8px !important;
+    margin-top: 4px !important;
+  }
+}
+
+/* Topbar Action Buttons (WhatsApp, Recordatorios, Atajos) */
+.btn-topbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 750;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-topbar-action:hover {
+  background: var(--border);
+}
+.btn-wasap-top {
+  background: rgba(37, 211, 102, 0.12);
+  border-color: rgba(37, 211, 102, 0.35);
+  color: #25d366;
+}
+.btn-wasap-top:hover {
+  background: rgba(37, 211, 102, 0.22);
+}
+.btn-notif-top {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: var(--warning);
+}
+.btn-notif-top:hover {
+  background: rgba(245, 158, 11, 0.22);
+}
+.btn-quick-top {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--primary);
+}
+.btn-quick-top:hover {
+  background: rgba(59, 130, 246, 0.22);
+}
+@media (max-width: 768px) {
+  .btn-topbar-text {
+    display: none !important;
+  }
+  .btn-topbar-action {
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+}
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+  .top-right {
+    gap: 4px;
+  }
+  .badge-streak {
+    display: none !important;
+  }
+}
+
+/* One-Touch Quick Shortcuts Bar & Widget */
+.quick-bar-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.quick-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quick-bar-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.quick-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 750;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+}
+.quick-chip:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.quick-chip:active {
+  transform: scale(0.97);
+}
+.quick-chip-icon {
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.quick-chip-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.quick-chip-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quick-chip-val {
+  font-size: 12.5px;
+  font-weight: 850;
+  color: var(--primary);
+}
+.quick-chip-val.income {
+  color: var(--success);
+}
+
+/* Floating Action Dock for Mobile Devices */
+.mobile-quick-dock {
+  display: none;
+  position: fixed;
+  bottom: 74px;
+  right: 12px;
+  z-index: 68;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+@media (min-width: 961px) {
+  .mobile-quick-dock { display: none !important; }
+}
+.fab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  backdrop-filter: blur(10px);
+}
+.fab-btn:active {
+  transform: scale(0.93);
+}
+.fab-flash {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.fab-wasap {
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* WhatsApp Daily Summary Styles */
+.whatsapp-preview-box {
+  background: #0b141a;
+  color: #e9edef;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  user-select: text;
+  border-left: 4px solid #25d366;
+  word-break: break-word;
+}
+[data-theme="light"] .whatsapp-preview-box {
+  background: #efeae2;
+  color: #111b21;
+}
+
+/* Notification & Reminder Cards */
+.notif-card-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.notif-card-box .notif-info {
+  flex: 1;
+  min-width: 0;
+}
+.notif-card-box strong {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+.notif-card-box small {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.touch-scroll-hint {
+  display: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  margin-bottom: 4px;
+}
+@media (max-width: 680px) {
+  .touch-scroll-hint {
+    display: block;
+  }
+}
+
+/* Shortcuts Tabs & Editor */
+.shortcuts-tabs {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.shortcut-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.shortcut-tab-btn.active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+}
+.shortcut-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 14px;
+}
+.shortcut-edit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  transition: border-color 0.15s ease;
+}
+.shortcut-edit-item:hover {
+  border-color: var(--primary);
+}
+.shortcut-edit-icon {
+  font-size: 20px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.shortcut-edit-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.shortcut-edit-title-input {
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: var(--text-main);
+  width: 100%;
+}
+.shortcut-edit-title-input:focus {
+  background: var(--bg-secondary);
+  border-color: var(--primary);
+}
+.shortcut-edit-type-badge {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.shortcut-edit-amount-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+.shortcut-edit-amount-box span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.shortcut-edit-amount-input {
+  width: 75px;
+  font-size: 14px;
+  font-weight: 800;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  text-align: right;
+  padding: 0;
+  outline: none;
+}
+.shortcut-edit-delete-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 15px;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+.shortcut-edit-delete-btn:hover {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.1);
+}
+
